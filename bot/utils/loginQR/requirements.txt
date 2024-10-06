@@ -1,0 +1,4 @@
+qrcode>=7.3.1
+Pyrogram>=2.0.51
+TgCrypto>=1.2.3
+rich>=12.5.1
