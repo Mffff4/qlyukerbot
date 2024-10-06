@@ -4,7 +4,7 @@
 
 # 🔥🔥 Используйте PYTHON версии 3.10 🔥🔥
 
-> 🇪🇳 README in english available [here](README-EN)
+> 🇪🇳 README in english available [here](README-EN.md)
 
 ## Функционал  
 |                   Функционал                   | Поддерживается |
