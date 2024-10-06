@@ -4,7 +4,7 @@
 
 [![Static Badge](https://img.shields.io/badge/Telegram-Link_to_bot-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/qlyukerbot/start?startapp=bro-228618799)
 
-> README in russian available [here](README.md)
+> README на русском языке доступно [here](README.md)
 
 ## Recommendation Before Using
 
