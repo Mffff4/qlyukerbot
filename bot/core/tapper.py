@@ -155,10 +155,10 @@ class Tapper:
             response_json = await response.json()
             return response_json
         except aiohttp.ClientResponseError as error:
-            logger.debug(
-                f"{self.session_name} | Error during buy_upgrade: {error.status}, "
-                f"message='{error.message}', url={error.request_info.url}"
-            )
+            #logger.debug(
+                #f"{self.session_name} | Error during buy_upgrade: {error.status}, "
+                #f"message='{error.message}', url={error.request_info.url}"
+           # )
             await asyncio.sleep(delay=3)
             return {}
         except Exception as error:
