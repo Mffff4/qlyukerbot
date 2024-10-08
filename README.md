@@ -1,7 +1,7 @@
 [![Static Badge](https://img.shields.io/badge/Телеграм-Ссылка_на_бота-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/qlyukerbot/start?startapp=bro-228618799)
+[![Static Badge](https://img.shields.io/badge/Телеграм-Ссылка_на_мой канал-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/+ap1Yd23CiuVkOTEy)
 
-[![Static Badge](https://img.shields.io/badge/Телеграм-Ссылка_на_мой канал-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)]([https://t.me/qlyukerbot/start?startapp=bro-228618799](https://t.me/+ap1Yd23CiuVkOTEy)
-
+https://t.me/+ap1Yd23CiuVkOTEy
 ## Рекомендация перед использованием
 
 # 🔥🔥 Используйте PYTHON версии 3.10 🔥🔥
