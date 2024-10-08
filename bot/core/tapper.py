@@ -155,14 +155,14 @@ class Tapper:
             response_json = await response.json()
             return response_json
         except aiohttp.ClientResponseError as error:
-            #logger.debug(
-                #f"{self.session_name} | Error during buy_upgrade: {error.status}, "
-                #f"message='{error.message}', url={error.request_info.url}"
-           # )
+            # logger.error(
+            #     f"{self.session_name} | Error during buy_upgrade: {error.status}, "
+            #     f"message='{error.message}', url={error.request_info.url}"
+            # )
             await asyncio.sleep(delay=3)
             return {}
         except Exception as error:
-            logger.debug(f"{self.session_name} | Unexpected error during buy_upgrade: {error}")
+            #logger.error(f"{self.session_name} | Unexpected error during buy_upgrade: {error}")
             await asyncio.sleep(delay=3)
             return {}
 
@@ -282,10 +282,9 @@ class Tapper:
                                         logger.info(f"{self.session_name} | Buying upgrade {upgrade_id} for {price} coins")
                                         upgrade_response = await self.buy_upgrade(http_client=http_client, upgrade_id=upgrade_id)
                                         if upgrade_response:
-                                            self.user_data.update(upgrade_response.get('user', {}))
-                                            current_coins = self.user_data.get('currentCoins', current_coins)
-                                            current_energy = self.user_data.get('currentEnergy', current_energy)
-                                            max_energy = self.user_data.get('maxEnergy', max_energy)
+                                            current_coins = upgrade_response.get('currentCoins', current_coins)
+                                            current_energy = upgrade_response.get('currentEnergy', current_energy)
+                                            max_energy = upgrade_response.get('maxEnergy', max_energy)
                                             logger.info(f"{self.session_name} | Upgrade {upgrade_id} purchased. Current coins: {current_coins}")
                                             await asyncio.sleep(settings.SLEEP_AFTER_UPGRADE)
                                             can_upgrade = True
