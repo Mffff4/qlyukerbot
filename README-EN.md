@@ -32,6 +32,8 @@
 |   **SLEEP_ON_LOW_ENERGY** |     Waiting time with low energy (default - 15 minutes)                              |
 |   **SLEEP_AFTER_UPGRADE** |     Delay after upgrading (default - 1 second)                                       |
 |   **SLEEP_AFTER_TAPS**    |     Delay after all taps are done (default - 0 seconds)                              |
+|         **MIN_DELAY_BETWEEN_TASKS**          |       Minimum delay time between task executions (default - 3 seconds)       |
+|         **MAX_DELAY_BETWEEN_TASKS**          |       Maximum delay time between task executions (default - 15 seconds) 
 | **USE_PROXY_FROM_FILE**   |     Use proxy from `bot/config/proxies.txt` (True / False)                           |
 
 
