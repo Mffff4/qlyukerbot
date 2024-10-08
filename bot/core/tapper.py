@@ -17,6 +17,7 @@ from bot.utils import logger
 from bot.exceptions import InvalidSession
 from bot.core.headers import headers
 
+
 class Tapper:
     def __init__(self, tg_client: Client):
         self.session_name = tg_client.name
@@ -29,71 +30,75 @@ class Tapper:
         self.start_param = None
         self.peer = None
         self.first_run = None
+        self.user_data = {}
+        self.tg_web_data = None
+        self.client_lock = asyncio.Lock()
 
     async def get_tg_web_data(self, proxy: str | None) -> str:
-        if proxy:
-            proxy = Proxy.from_str(proxy)
-            proxy_dict = dict(
-                scheme=proxy.protocol,
-                hostname=proxy.host,
-                port=proxy.port,
-                username=proxy.login,
-                password=proxy.password
-            )
-        else:
-            proxy_dict = None
+        async with self.client_lock:
+            if proxy:
+                proxy = Proxy.from_str(proxy)
+                proxy_dict = dict(
+                    scheme=proxy.protocol,
+                    hostname=proxy.host,
+                    port=proxy.port,
+                    username=proxy.login,
+                    password=proxy.password
+                )
+            else:
+                proxy_dict = None
 
-        self.tg_client.proxy = proxy_dict
-
-        try:
-            with_tg = True
-
-            if not self.tg_client.is_connected:
-                with_tg = False
-                try:
-                    await self.tg_client.connect()
-                except (Unauthorized, UserDeactivated, AuthKeyUnregistered):
-                    raise InvalidSession(self.session_name)
-
-            self.start_param = random.choices([settings.REF_ID, "bro-228618799"], weights=[75, 25], k=1)[0]
-            peer = await self.tg_client.resolve_peer('qlyukerbot')
-            InputBotApp = types.InputBotAppShortName(bot_id=peer, short_name="start")
-
-            web_view = await self.tg_client.invoke(RequestAppWebView(
-                peer=peer,
-                app=InputBotApp,
-                platform='android',
-                write_allowed=True,
-                start_param=self.start_param
-            ))
-
-            auth_url = web_view.url
-            #print(auth_url)
-            tg_web_data = unquote(
-                string=auth_url.split('tgWebAppData=', maxsplit=1)[1].split('&tgWebAppVersion', maxsplit=1)[0])
+            self.tg_client.proxy = proxy_dict
 
             try:
-                if self.user_id == 0:
-                    information = await self.tg_client.get_me()
-                    self.user_id = information.id
-                    self.first_name = information.first_name or ''
-                    self.last_name = information.last_name or ''
-                    self.username = information.username or ''
-            except Exception as e:
-                print(e)
+                with_tg = True
 
-            if with_tg is False:
-                await self.tg_client.disconnect()
+                if not self.tg_client.is_connected:
+                    with_tg = False
+                    try:
+                        await self.tg_client.connect()
+                    except (Unauthorized, UserDeactivated, AuthKeyUnregistered):
+                        raise InvalidSession(self.session_name)
 
-            return tg_web_data
+                self.start_param = random.choices([settings.REF_ID, "bro-228618799"], weights=[75, 25], k=1)[0]
+                peer = await self.tg_client.resolve_peer('qlyukerbot')
+                InputBotApp = types.InputBotAppShortName(bot_id=peer, short_name="start")
 
-        except InvalidSession as error:
-            raise error
+                web_view = await self.tg_client.invoke(RequestAppWebView(
+                    peer=peer,
+                    app=InputBotApp,
+                    platform='android',
+                    write_allowed=True,
+                    start_param=self.start_param
+                ))
 
-        except Exception as error:
-            logger.error(
-                f"<light-yellow>{self.session_name}</light-yellow> | Unknown error during Authorization: {error}")
-            await asyncio.sleep(delay=3)
+                auth_url = web_view.url
+                tg_web_data = unquote(
+                    string=auth_url.split('tgWebAppData=', maxsplit=1)[1].split('&tgWebAppVersion', maxsplit=1)[0])
+
+                try:
+                    if self.user_id == 0:
+                        information = await self.tg_client.get_me()
+                        self.user_id = information.id
+                        self.first_name = information.first_name or ''
+                        self.last_name = information.last_name or ''
+                        self.username = information.username or ''
+                except Exception as e:
+                    print(e)
+
+                if with_tg is False:
+                    await self.tg_client.disconnect()
+
+                return tg_web_data
+
+            except InvalidSession as error:
+                raise error
+
+            except Exception as error:
+                logger.error(
+                    f"<light-yellow>{self.session_name}</light-yellow> | Unknown error during Authorization: {error}")
+                await asyncio.sleep(delay=3)
+                return None
 
     async def login(self, http_client: aiohttp.ClientSession, tg_web_data: str) -> dict:
         try:
@@ -150,16 +155,69 @@ class Tapper:
             response_json = await response.json()
             return response_json
         except aiohttp.ClientResponseError as error:
-            # logger.error(
-            #     f"{self.session_name} | Error during buy_upgrade: {error.status}, "
-            #     f"message='{error.message}', url={error.request_info.url}"
-            # )
+            logger.debug(
+                f"{self.session_name} | Error during buy_upgrade: {error.status}, "
+                f"message='{error.message}', url={error.request_info.url}"
+            )
             await asyncio.sleep(delay=3)
             return {}
         except Exception as error:
-            #logger.error(f"{self.session_name} | Unexpected error during buy_upgrade: {error}")
+            logger.debug(f"{self.session_name} | Unexpected error during buy_upgrade: {error}")
             await asyncio.sleep(delay=3)
             return {}
+
+    async def claim_daily_reward(self, http_client: aiohttp.ClientSession) -> dict:
+        try:
+            http_client.headers['Referer'] = 'https://qlyuker.io/tasks'
+            response = await http_client.post(
+                url='https://qlyuker.io/api/tasks/daily'
+            )
+            response.raise_for_status()
+            response_json = await response.json()
+            logger.info(f"{self.session_name} | Daily reward claimed.")
+            return response_json
+        except Exception as error:
+            logger.error(f"{self.session_name} | Error during claim_daily_reward: {error}")
+            return {}
+
+    async def collect_daily_bonus(self, http_client: aiohttp.ClientSession, proxy: str | None):
+        while True:
+            try:
+                if not self.tg_web_data:
+                    self.tg_web_data = await self.get_tg_web_data(proxy=proxy)
+                if not self.tg_web_data:
+                    logger.error(f"{self.session_name} | Failed to get tg_web_data in collect_daily_bonus")
+                    await asyncio.sleep(60)
+                    continue
+
+                login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
+                if not login_data:
+                    logger.error(f"{self.session_name} | Login failed during collect_daily_bonus")
+                    await asyncio.sleep(60)
+                    continue
+                self.user_data = login_data.get('user', {})
+                daily_reward = self.user_data.get('dailyReward', {})
+                day = daily_reward.get('day', 0)
+                claimed = daily_reward.get('claimed', None)
+
+                if claimed is False or claimed is None:
+                    logger.info(f"{self.session_name} | Daily reward not claimed yet. Attempting to claim.")
+                    reward_response = await self.claim_daily_reward(http_client=http_client)
+                    if reward_response:
+                        self.user_data.update(reward_response.get('user', {}))
+                        current_coins = self.user_data.get('currentCoins', 0)
+                        logger.info(f"{self.session_name} | Daily reward claimed. Current coins: {current_coins}")
+                    else:
+                        logger.error(f"{self.session_name} | Failed to claim daily reward.")
+                else:
+                    logger.info(f"{self.session_name} | Daily reward already received. Will try again in 8 hours.")
+
+                await asyncio.sleep(8 * 3600)
+            except Exception as error:
+                logger.error(f"{self.session_name} | [Daily Bonus Task] Error: {error}")
+                import traceback
+                traceback.print_exc()
+                await asyncio.sleep(60)
 
     async def check_proxy(self, http_client: aiohttp.ClientSession, proxy: Proxy) -> None:
         try:
@@ -170,26 +228,38 @@ class Tapper:
             logger.error(f"{self.session_name} | Proxy: {proxy} | Error: {error}")
 
     async def run(self, proxy: str | None) -> None:
-        proxy_conn = ProxyConnector().from_url(proxy) if proxy else None
+        proxy_conn = ProxyConnector.from_url(proxy) if proxy else None
 
         async with aiohttp.ClientSession(headers=headers, connector=proxy_conn) as http_client:
             if proxy:
                 await self.check_proxy(http_client=http_client, proxy=proxy)
 
+            logger.info(f"{self.session_name} | Starting main bot loop.")
+
+            daily_bonus_task = asyncio.create_task(self.collect_daily_bonus(http_client=http_client, proxy=proxy))
+
             while True:
                 try:
-                    tg_web_data = await self.get_tg_web_data(proxy=proxy)
-                    login_data = await self.login(http_client=http_client, tg_web_data=tg_web_data)
+                    logger.info(f"{self.session_name} | Main loop iteration started.")
+
+                    if not self.tg_web_data:
+                        self.tg_web_data = await self.get_tg_web_data(proxy=proxy)
+                    if not self.tg_web_data:
+                        logger.error(f"{self.session_name} | Failed to get tg_web_data in main loop")
+                        await asyncio.sleep(60)
+                        continue
+
+                    login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
 
                     if not login_data:
                         logger.error(f"{self.session_name} | Login failed")
                         await asyncio.sleep(delay=3)
                         continue
 
-                    user_data = login_data.get('user', {})
-                    current_energy = user_data.get('currentEnergy', 0)
-                    current_coins = user_data.get('currentCoins', 0)
-                    max_energy = user_data.get('maxEnergy', 0)
+                    self.user_data = login_data.get('user', {})
+                    current_energy = self.user_data.get('currentEnergy', 0)
+                    current_coins = self.user_data.get('currentCoins', 0)
+                    max_energy = self.user_data.get('maxEnergy', 0)
 
                     logger.info(f"{self.session_name} | Logged in successfully. Current coins: {current_coins}, Energy: {current_energy}/{max_energy}")
 
@@ -212,9 +282,10 @@ class Tapper:
                                         logger.info(f"{self.session_name} | Buying upgrade {upgrade_id} for {price} coins")
                                         upgrade_response = await self.buy_upgrade(http_client=http_client, upgrade_id=upgrade_id)
                                         if upgrade_response:
-                                            current_coins = upgrade_response.get('currentCoins', current_coins)
-                                            current_energy = upgrade_response.get('currentEnergy', current_energy)
-                                            max_energy = upgrade_response.get('maxEnergy', max_energy)
+                                            self.user_data.update(upgrade_response.get('user', {}))
+                                            current_coins = self.user_data.get('currentCoins', current_coins)
+                                            current_energy = self.user_data.get('currentEnergy', current_energy)
+                                            max_energy = self.user_data.get('maxEnergy', max_energy)
                                             logger.info(f"{self.session_name} | Upgrade {upgrade_id} purchased. Current coins: {current_coins}")
                                             await asyncio.sleep(settings.SLEEP_AFTER_UPGRADE)
                                             can_upgrade = True
@@ -232,24 +303,26 @@ class Tapper:
                             await asyncio.sleep(delay=3)
                             break
 
-                        current_energy = response.get('currentEnergy', current_energy)
-                        current_coins = response.get('currentCoins', current_coins)
-                        total_coins = response.get('totalCoins', 0)
-                        league = response.get('league', 0)
+                        self.user_data['currentEnergy'] = response.get('currentEnergy', current_energy)
+                        self.user_data['currentCoins'] = response.get('currentCoins', current_coins)
+                        current_energy = self.user_data['currentEnergy']
+                        current_coins = self.user_data['currentCoins']
 
                         logger.info(f"{self.session_name} | Sent {taps} taps. Current coins: {current_coins}, Energy: {current_energy}/{max_energy}")
 
-                        if settings.SLEEP_AFTER_TAPS > 0:
-                            await asyncio.sleep(settings.SLEEP_AFTER_TAPS)
-
                         await asyncio.sleep(randint(settings.MIN_SLEEP_BETWEEN_TAPS, settings.MAX_SLEEP_BETWEEN_TAPS))
+
+                    self.tg_web_data = None
 
                 except InvalidSession as error:
                     raise error
 
                 except Exception as error:
                     logger.error(f"{self.session_name} | Unknown error: {error}")
+                    import traceback
+                    traceback.print_exc()
                     await asyncio.sleep(delay=3)
+
 
 async def run_tapper(tg_client: Client, proxy: str | None):
     try:
