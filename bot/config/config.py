@@ -20,4 +20,8 @@ class Settings(BaseSettings):
     SLEEP_AFTER_TAPS: int = 0
     MIN_DELAY_BETWEEN_TASKS: int = 3
     MAX_DELAY_BETWEEN_TASKS: int = 15
+
+    UPGRADE_CHECK_DELAY: int = 5
+    RETRY_DELAY: int = 3
+    MAX_RETRIES: int = 5
 settings = Settings()
