@@ -3,7 +3,7 @@
 # Telegram Bot
 
 [![Static Badge](https://img.shields.io/badge/Telegram-Link_to_bot-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/qlyukerbot/start?startapp=bro-228618799)
-
+[![Static Badge](https://img.shields.io/badge/Telegram-Link_to_my_channel-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/+ap1Yd23CiuVkOTEy)
 > README на русском языке доступно [здесь](README.md)
 
 ## Recommendation Before Using
