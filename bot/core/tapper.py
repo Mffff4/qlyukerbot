@@ -219,6 +219,72 @@ class Tapper:
                 traceback.print_exc()
                 await asyncio.sleep(60)
 
+    async def collect_tasks(self, http_client: aiohttp.ClientSession, proxy: str | None):
+        while True:
+            try:
+                if not self.tg_web_data:
+                    self.tg_web_data = await self.get_tg_web_data(proxy=proxy)
+                if not self.tg_web_data:
+                    logger.error(f"{self.session_name} | Failed to get tg_web_data in collect_tasks")
+                    await asyncio.sleep(60)
+                    continue
+
+                login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
+                if not login_data:
+                    logger.error(f"{self.session_name} | Login failed during collect_tasks")
+                    await asyncio.sleep(60)
+                    continue
+
+                self.user_data = login_data.get('user', {})
+                tasks = login_data.get('tasks', [])
+                if not tasks:
+                    logger.info(f"{self.session_name} | No tasks available.")
+                else:
+                    logger.info(f"{self.session_name} | Attempting to complete tasks.")
+
+                for task in tasks:
+                    task_id = task.get('id')
+                    if task.get('completed'):
+                        logger.info(f"{self.session_name} | Task '{task_id}' already completed.")
+                        continue
+
+                    task_response = await self.check_task(http_client=http_client, task_id=task_id)
+                    if task_response.get('success'):
+                        reward = task_response.get('reward', 0)
+                        logger.info(f"{self.session_name} | Task '{task_id}' completed. Reward: {reward}")
+                        self.user_data['currentCoins'] = self.user_data.get('currentCoins', 0) + reward
+                    else:
+                        logger.info(f"{self.session_name} | Task '{task_id}' not completed or already claimed.")
+
+                    # Add random delay between tasks
+                    delay = random.uniform(settings.MIN_DELAY_BETWEEN_TASKS, settings.MAX_DELAY_BETWEEN_TASKS)
+                    logger.info(f"{self.session_name} | Waiting for {delay:.2f} seconds before next task.")
+                    await asyncio.sleep(delay)
+
+                logger.info(f"{self.session_name} | Finished attempting tasks. Will try again in 8 hours.")
+                await asyncio.sleep(8 * 3600)
+            except Exception as error:
+                logger.error(f"{self.session_name} | [Tasks Collection] Error: {error}")
+                import traceback
+                traceback.print_exc()
+                await asyncio.sleep(60)
+
+    async def check_task(self, http_client: aiohttp.ClientSession, task_id: str) -> dict:
+        try:
+            http_client.headers['Referer'] = 'https://qlyuker.io/tasks'
+            json_data = {"taskId": task_id}
+            response = await http_client.post(
+                url='https://qlyuker.io/api/tasks/check',
+                json=json_data
+            )
+            response.raise_for_status()
+            response_json = await response.json()
+            return response_json
+        except Exception as error:
+            logger.error(f"{self.session_name} | Error during check_task '{task_id}': {error}")
+            await asyncio.sleep(delay=3)
+            return {}
+
     async def check_proxy(self, http_client: aiohttp.ClientSession, proxy: Proxy) -> None:
         try:
             response = await http_client.get(url='https://httpbin.org/ip', timeout=aiohttp.ClientTimeout(total=5))
@@ -237,6 +303,7 @@ class Tapper:
             logger.info(f"{self.session_name} | Starting main bot loop.")
 
             daily_bonus_task = asyncio.create_task(self.collect_daily_bonus(http_client=http_client, proxy=proxy))
+            tasks_collection_task = asyncio.create_task(self.collect_tasks(http_client=http_client, proxy=proxy))
 
             while True:
                 try:
@@ -279,7 +346,7 @@ class Tapper:
                                     next_info = upgrade.get('next', {})
                                     price = next_info.get('price', 0)
                                     if current_coins >= price and price > 0:
-                                        logger.info(f"{self.session_name} | Buying upgrade {upgrade_id} for {price} coins")
+                                        logger.info(f"{self.session_name} | Try buying upgrade {upgrade_id} for {price} coins")
                                         upgrade_response = await self.buy_upgrade(http_client=http_client, upgrade_id=upgrade_id)
                                         if upgrade_response:
                                             current_coins = upgrade_response.get('currentCoins', current_coins)
