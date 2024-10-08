@@ -122,7 +122,7 @@ You can also quickly start using the following arguments, for example:
 |Solana (SOL)|3vVxkGKasJWCgoamdJiRPy6is4di72xR98CDj2UdS1BE| 
 |Ripple (XRP)|rPJzfBcU6B8SYU5M8h36zuPcLCgRcpKNB4| 
 |Dogecoin (DOGE)|DST5W1c4FFzHVhruVsa2zE6jh5dznLDkmW| 
-||Polka dot (DOT)|1US84xhUghAhrMtw2bcZh9CXN3i7T1VJB2Gdjy9hNjR3K71| 
+|Polka dot (DOT)|1US84xhUghAhrMtw2bcZh9CXN3i7T1VJB2Gdjy9hNjR3K71| 
 |Litecoin (LTC)|ltc1qcg8qesg8j4wvk9m7e74pm7aanl34y7q9rutvwu| 
 |Matic|0xc935e81045CAbE0B8380A284Ed93060dA212fa83| 
 |Tron (TRX)|TQkDWCjchCLhNsGwr4YocUHEeezsB4jVo5| 
