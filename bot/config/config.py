@@ -18,5 +18,6 @@ class Settings(BaseSettings):
     SLEEP_ON_LOW_ENERGY: int = 60 * 15
     SLEEP_AFTER_UPGRADE: int = 1
     SLEEP_AFTER_TAPS: int = 0
-
+    MIN_DELAY_BETWEEN_TASKS: int = 3
+    MAX_DELAY_BETWEEN_TASKS: int = 15
 settings = Settings()
