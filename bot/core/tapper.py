@@ -281,7 +281,7 @@ class Tapper:
             response_json = await response.json()
             return response_json
         except Exception as error:
-            logger.error(f"{self.session_name} | Error during check_task '{task_id}': {error}")
+            #logger.error(f"{self.session_name} | Error during check_task '{task_id}': {error}")
             await asyncio.sleep(delay=3)
             return {}
 
