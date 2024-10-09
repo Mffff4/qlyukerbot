@@ -44,8 +44,9 @@ class Tapper:
         self.last_restore_energy_reset_date = None
         self.restore_energy_daily_limit = 6
         self.restore_energy_cooldown = timedelta(hours=1)
-        self.last_restore_energy_purchase_time = None
+        self.last_restore_energy_purchase_time = {}
         self.onboarding = 0
+        self.upgrade_delay = {}
 
     async def get_tg_web_data(self, proxy: str | None) -> str:
         async with self.client_lock:
@@ -108,18 +109,15 @@ class Tapper:
                 raise error
 
             except Exception as error:
-                logger.error(
-                    f"{self.session_name} | Unknown error during Authorization: {error}")
+                logger.error(f"{self.session_name} | Unknown error during Authorization: {error}")
                 await asyncio.sleep(3)
                 return None
 
     async def login(self, http_client: aiohttp.ClientSession, tg_web_data: str) -> dict:
         try:
             http_client.headers['Onboarding'] = '0'
-
             json_data = {"startData": tg_web_data}
             #logger.debug(f"{self.session_name} | login REQUEST: URL=https://qlyuker.io/api/auth/start, Headers={dict(http_client.headers)}, Payload={json_data}")
-
             response = await http_client.post(
                 url='https://qlyuker.io/api/auth/start',
                 json=json_data
@@ -128,7 +126,6 @@ class Tapper:
                 response_text = await response.text()
                 logger.error(f"{self.session_name} | login FAILED: Status={response.status}, Response={response_text}")
                 response.raise_for_status()
-
             response_json = await response.json()
             http_client.headers['Onboarding'] = '2'
             await self.process_auth_data(response_json)
@@ -151,6 +148,8 @@ class Tapper:
     async def process_auth_data(self, data: dict):
         user = data.get("user", {})
         upgrades = data.get("upgrades", [])
+        shared_config = data.get("sharedConfig", {})
+        self.upgrade_delay = shared_config.get("upgradeDelay", {})
         self.onboarding = user.get("onboarding", self.onboarding)
         for upgrade in upgrades:
             upgrade_id = upgrade.get('id')
@@ -176,20 +175,21 @@ class Tapper:
         self.max_energy = user.get("maxEnergy", self.max_energy)
         self.friends_count = user.get("friendsCount", 0)
 
-        restore_energy_upgrade = self.upgrades.get('restoreEnergy')
-        if restore_energy_upgrade:
-            upgraded_at_field = restore_energy_upgrade.get('upgradedAt')
-            if upgraded_at_field:
-                upgraded_at = await self.parse_upgraded_at(upgraded_at_field)
-                if upgraded_at:
-                    current_date = datetime.utcnow().date()
-                    last_upgrade_date = upgraded_at.date()
-                    if current_date != self.last_restore_energy_reset_date:
-                        self.restore_energy_usage_today = 0
-                        self.last_restore_energy_reset_date = current_date
-                    self.last_restore_energy_purchase_time = upgraded_at
-        else:
-            self.restore_energy_usage_today = 0
+        for upgrade_id, upgrade in self.upgrades.items():
+            if upgrade_id.startswith('restoreEnergy') or upgrade_id.startswith('promo'):
+                upgraded_at_field = upgrade.get('upgradedAt')
+                if upgraded_at_field:
+                    upgraded_at = await self.parse_upgraded_at(upgraded_at_field)
+                    if upgraded_at:
+                        current_date = datetime.utcnow().date()
+                        last_upgrade_date = upgraded_at.date()
+                        if current_date != self.last_restore_energy_reset_date:
+                            self.restore_energy_usage_today = 0
+                            self.last_restore_energy_reset_date = current_date
+                        self.last_restore_energy_purchase_time[upgrade_id] = upgraded_at
+        for upgrade_id, upgrade in self.upgrades.items():
+            if not upgrade_id.startswith('restoreEnergy') and not upgrade_id.startswith('promo'):
+                self.last_restore_energy_purchase_time.setdefault(upgrade_id, None)
 
     async def parse_upgraded_at(self, upgraded_at):
         try:
@@ -223,7 +223,6 @@ class Tapper:
                 response_text = await response.text()
                 logger.error(f"{self.session_name} | send_taps FAILED: Status={response.status}, Response={response_text}")
                 response.raise_for_status()
-
             response_json = await response.json()
             logger.info(f"{self.session_name} | Sent {taps} taps. Energy used: {taps}.")
             return response_json
@@ -242,10 +241,13 @@ class Tapper:
 
     async def buy_upgrade(self, http_client: aiohttp.ClientSession, upgrade_id: str) -> dict:
         try:
+            if upgrade_id not in self.upgrades:
+                logger.error(f"{self.session_name} | Upgrade '{upgrade_id}' not found in upgrades data.")
+                return {}
             http_client.headers['Referer'] = 'https://qlyuker.io/upgrades'
             http_client.headers['Onboarding'] = str(self.onboarding)
             json_data = {"upgradeId": upgrade_id}
-            logger.debug(f"{self.session_name} | buy_upgrade REQUEST: URL=https://qlyuker.io/api/upgrades/buy, Headers={dict(http_client.headers)}, Payload={json_data}")
+            #logger.debug(f"{self.session_name} | buy_upgrade REQUEST: URL=https://qlyuker.io/api/upgrades/buy, Headers={dict(http_client.headers)}, Payload={json_data}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/upgrades/buy',
                 json=json_data
@@ -254,14 +256,11 @@ class Tapper:
                 response_text = await response.text()
                 logger.error(f"{self.session_name} | buy_upgrade '{upgrade_id}' FAILED: Status={response.status}, Response={response_text}")
                 response.raise_for_status()
-
             response_json = await response.json()
             await self.update_upgrade_after_purchase(response_json)
             logger.info(f"{self.session_name} | Successfully purchased upgrade '{upgrade_id}'.")
-            if upgrade_id == 'restoreEnergy':
-                self.last_restore_energy_purchase_time = datetime.utcnow().replace(tzinfo=timezone.utc)
+            self.last_restore_energy_purchase_time[upgrade_id] = datetime.utcnow().replace(tzinfo=timezone.utc)
             return response_json
-
         except aiohttp.ClientResponseError as error:
             try:
                 response_text = await error.response.text()
@@ -297,12 +296,11 @@ class Tapper:
                     "next": buy_response.get('next', {})
                 }
                 logger.info(f"{self.session_name} | Upgrade '{upgrade_id}' added after purchase.")
-
-            self.current_coins = buy_response.get('currentCoins', self.current_coins)
-            self.current_energy = buy_response.get('currentEnergy', self.current_energy)
-            self.max_energy = buy_response.get('maxEnergy', self.max_energy)
-            self.mine_per_sec = buy_response.get('minePerSec', self.mine_per_sec)
-            self.energy_per_sec = buy_response.get('energyPerSec', self.energy_per_sec)
+        self.current_coins = buy_response.get('currentCoins', self.current_coins)
+        self.current_energy = buy_response.get('currentEnergy', self.current_energy)
+        self.max_energy = buy_response.get('maxEnergy', self.max_energy)
+        self.mine_per_sec = buy_response.get('minePerSec', self.mine_per_sec)
+        self.energy_per_sec = buy_response.get('energyPerSec', self.energy_per_sec)
 
     async def claim_daily_reward(self, http_client: aiohttp.ClientSession) -> dict:
         try:
@@ -315,7 +313,6 @@ class Tapper:
                 response_text = await response.text()
                 logger.error(f"{self.session_name} | claim_daily_reward FAILED: Status={response.status}, Response={response_text}")
                 response.raise_for_status()
-
             response_json = await response.json()
             logger.info(f"{self.session_name} | Daily reward claimed successfully.")
             return response_json
@@ -339,7 +336,6 @@ class Tapper:
                     logger.error(f"{self.session_name} | Failed to get tg_web_data in collect_daily_bonus")
                     await asyncio.sleep(60)
                     continue
-
                 login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
                 if not login_data:
                     logger.error(f"{self.session_name} | Login failed during collect_daily_bonus")
@@ -349,7 +345,6 @@ class Tapper:
                 daily_reward = self.user_data.get('dailyReward', {})
                 day = daily_reward.get('day', 0)
                 claimed = daily_reward.get('claimed', None)
-
                 if not claimed:
                     logger.info(f"{self.session_name} | Daily reward not claimed yet. Attempting to claim.")
                     reward_response = await self.claim_daily_reward(http_client=http_client)
@@ -361,7 +356,6 @@ class Tapper:
                         logger.error(f"{self.session_name} | Failed to claim daily reward.")
                 else:
                     logger.info(f"{self.session_name} | Daily reward already received. Will try again in 8 hours.")
-
                 await asyncio.sleep(8 * 3600)
             except Exception as error:
                 logger.error(f"{self.session_name} | [Daily Bonus Task] Error: {error}")
@@ -378,26 +372,22 @@ class Tapper:
                     logger.error(f"{self.session_name} | Failed to get tg_web_data in collect_tasks")
                     await asyncio.sleep(60)
                     continue
-
                 login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
                 if not login_data:
                     logger.error(f"{self.session_name} | Login failed during collect_tasks")
                     await asyncio.sleep(60)
                     continue
-
                 self.user_data = login_data.get('user', {})
                 tasks = login_data.get('tasks', [])
                 if not tasks:
                     logger.info(f"{self.session_name} | No tasks available.")
                 else:
                     logger.info(f"{self.session_name} | Attempting to complete tasks.")
-
                 for task in tasks:
                     task_id = task.get('id')
                     if task.get('completed'):
                         logger.info(f"{self.session_name} | Task '{task_id}' already completed.")
                         continue
-
                     task_response = await self.check_task(http_client=http_client, task_id=task_id)
                     if task_response.get('success'):
                         reward = task_response.get('reward', 0)
@@ -406,11 +396,9 @@ class Tapper:
                         logger.info(f"{self.session_name} | Current coins after reward: {self.current_coins}")
                     else:
                         logger.info(f"{self.session_name} | Task '{task_id}' not completed or already claimed.")
-
                     delay = random.uniform(settings.MIN_DELAY_BETWEEN_TASKS, settings.MAX_DELAY_BETWEEN_TASKS)
                     logger.info(f"{self.session_name} | Waiting for {delay:.2f} seconds before next task.")
                     await asyncio.sleep(delay)
-
                 logger.info(f"{self.session_name} | Finished attempting tasks. Will try again in 8 hours.")
                 await asyncio.sleep(8 * 3600)
             except Exception as error:
@@ -432,7 +420,6 @@ class Tapper:
                 response_text = await response.text()
                 logger.error(f"{self.session_name} | check_task '{task_id}' FAILED: Status={response.status}, Response={response_text}")
                 response.raise_for_status()
-
             response_json = await response.json()
             return response_json
         except aiohttp.ClientResponseError as error:
@@ -487,6 +474,9 @@ class Tapper:
 
             condition = u.get('condition', {})
             if not await self.check_condition(u, condition, user_data):
+                continue
+
+            if not await self.is_upgrade_available(upgrade_id):
                 continue
 
             upgrade_scores.append({
@@ -544,22 +534,25 @@ class Tapper:
         else:
             return False
 
-    async def is_restore_energy_available(self):
-        restore_upgrade = self.upgrades.get('restoreEnergy')
-        if not restore_upgrade:
-            logger.warning(f"{self.session_name} | Upgrade 'restoreEnergy' not found.")
+    async def is_upgrade_available(self, upgrade_id: str) -> bool:
+        upgrade = self.upgrades.get(upgrade_id)
+        if not upgrade:
+            logger.warning(f"{self.session_name} | Upgrade '{upgrade_id}' not found.")
             return False
 
-        if restore_upgrade.get('maxLevel', False):
+        if upgrade.get('maxLevel', False):
             return False
 
-        if self.restore_energy_usage_today >= self.restore_energy_daily_limit:
-            return False
-
-        if self.last_restore_energy_purchase_time:
-            if datetime.utcnow().replace(tzinfo=timezone.utc) - self.last_restore_energy_purchase_time < self.restore_energy_cooldown:
-                return False
-
+        if upgrade_id.startswith('restoreEnergy') or upgrade_id.startswith('promo'):
+            if upgrade.get('dayLimitation', 0) > 0:
+                if self.restore_energy_usage_today >= self.restore_energy_daily_limit:
+                    return False
+            last_purchase = self.last_restore_energy_purchase_time.get(upgrade_id)
+            if last_purchase:
+                delay_seconds = self.upgrade_delay.get(str(upgrade.get('level', 0)), 0)
+                if datetime.utcnow().replace(tzinfo=timezone.utc) - last_purchase < timedelta(seconds=delay_seconds):
+                    return False
+            return True
         return True
 
     async def run(self, proxy: str | None) -> None:
@@ -606,10 +599,11 @@ class Tapper:
                     while True:
                         if current_energy <= max_energy * settings.ENERGY_THRESHOLD:
                             logger.info(f"{self.session_name} | Energy ({current_energy}/{max_energy}) below threshold ({settings.ENERGY_THRESHOLD * 100}%).")
-                            if await self.is_restore_energy_available():
+                            if await self.is_upgrade_available('restoreEnergy'):
                                 upgrade_response = await self.buy_upgrade(http_client=http_client, upgrade_id='restoreEnergy')
                                 if upgrade_response and upgrade_response.get('currentEnergy', 0) > current_energy:
                                     current_energy = upgrade_response['currentEnergy']
+                                    self.restore_energy_usage_today += 1
                                     logger.info(f"{self.session_name} | Energy restored to {current_energy}.")
                                     logger.info(f"{self.session_name} | Sleeping for {settings.SLEEP_AFTER_UPGRADE} seconds after upgrade.")
                                     await asyncio.sleep(settings.SLEEP_AFTER_UPGRADE)
@@ -631,7 +625,6 @@ class Tapper:
 
                             if price <= current_coins:
                                 logger.info(f"{self.session_name} | Attempting to purchase upgrade '{upgrade_id}' for {price} coins. Expected increment: {increment}.")
-
                                 upgrade_response = await self.buy_upgrade(http_client=http_client, upgrade_id=upgrade_id)
                                 if upgrade_response:
                                     current_coins = upgrade_response.get('currentCoins', current_coins)
