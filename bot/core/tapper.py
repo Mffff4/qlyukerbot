@@ -217,22 +217,38 @@ class Tapper:
             http_client.headers['Referer'] = 'https://qlyuker.io/upgrades'
             http_client.headers['Onboarding'] = str(self.onboarding)
             json_data = {"upgradeId": upgrade_id}
+            logger.debug(f"{self.session_name} | buy_upgrade REQUEST: "
+                        f"URL=https://qlyuker.io/api/upgrades/buy, "
+                        f"Headers={dict(http_client.headers)}, "
+                        f"Payload={json.dumps(json_data)}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/upgrades/buy',
                 json=json_data
             )
-            response.raise_for_status()
-
+            if response.status != 200:
+                response_text = await response.text()
+                logger.error(f"{self.session_name} | buy_upgrade '{upgrade_id}' FAILED: "
+                            f"Status={response.status}, Response={response_text}")
+                response.raise_for_status() 
             response_json = await response.json()
             await self.update_upgrade_after_purchase(response_json)
             logger.info(f"{self.session_name} | Successfully purchased upgrade '{upgrade_id}'.")
+            
             return response_json
+
         except aiohttp.ClientResponseError as error:
-            logger.error(f"{self.session_name} | Client response error during buy_upgrade '{upgrade_id}': {error.status} - {error.message}")
+            try:
+                response_text = await error.response.text()
+            except Exception:
+                response_text = "No response body"
+            logger.error(f"{self.session_name} | ClientResponseError during buy_upgrade '{upgrade_id}': "
+                        f"Status={error.status}, Message={error.message}, Response={response_text}")
+            
             await asyncio.sleep(3)
             return {}
+        
         except Exception as error:
-            logger.error(f"{self.session_name} | Error during buy_upgrade '{upgrade_id}': {error}")
+            logger.error(f"{self.session_name} | Unexpected error during buy_upgrade '{upgrade_id}': {error}")
             await asyncio.sleep(3)
             return {}
 
