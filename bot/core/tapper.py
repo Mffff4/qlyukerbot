@@ -117,7 +117,7 @@ class Tapper:
         try:
             http_client.headers['Onboarding'] = '0'
             json_data = {"startData": tg_web_data}
-            #logger.debug(f"{self.session_name} | login REQUEST: URL=https://qlyuker.io/api/auth/start, Headers={dict(http_client.headers)}, Payload={json_data}")
+            logger.debug(f"{self.session_name} | login REQUEST: URL=https://qlyuker.io/api/auth/start, Headers={dict(http_client.headers)}, Payload={json_data}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/auth/start',
                 json=json_data
@@ -214,7 +214,7 @@ class Tapper:
                 "clientTime": client_time,
                 "taps": taps
             }
-            #logger.debug(f"{self.session_name} | send_taps REQUEST: URL=https://qlyuker.io/api/game/sync, Headers={dict(http_client.headers)}, Payload={json_data}")
+            logger.debug(f"{self.session_name} | send_taps REQUEST: URL=https://qlyuker.io/api/game/sync, Headers={dict(http_client.headers)}, Payload={json_data}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/game/sync',
                 json=json_data
@@ -247,7 +247,7 @@ class Tapper:
             http_client.headers['Referer'] = 'https://qlyuker.io/upgrades'
             http_client.headers['Onboarding'] = str(self.onboarding)
             json_data = {"upgradeId": upgrade_id}
-            #logger.debug(f"{self.session_name} | buy_upgrade REQUEST: URL=https://qlyuker.io/api/upgrades/buy, Headers={dict(http_client.headers)}, Payload={json_data}")
+            logger.debug(f"{self.session_name} | buy_upgrade REQUEST: URL=https://qlyuker.io/api/upgrades/buy, Headers={dict(http_client.headers)}, Payload={json_data}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/upgrades/buy',
                 json=json_data
@@ -255,6 +255,9 @@ class Tapper:
             if response.status != 200:
                 response_text = await response.text()
                 logger.error(f"{self.session_name} | buy_upgrade '{upgrade_id}' FAILED: Status={response.status}, Response={response_text}")
+                if upgrade_id == 'restoreEnergy' and 'Слишком рано для улучшения' in response_text:
+                    self.last_restore_energy_purchase_time[upgrade_id] = datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(hours=1)
+                    logger.info(f"{self.session_name} | Кулдаун на 'restoreEnergy' установлен на 1 час.")
                 response.raise_for_status()
             response_json = await response.json()
             await self.update_upgrade_after_purchase(response_json)
@@ -305,7 +308,7 @@ class Tapper:
     async def claim_daily_reward(self, http_client: aiohttp.ClientSession) -> dict:
         try:
             http_client.headers['Referer'] = 'https://qlyuker.io/tasks'
-            #logger.debug(f"{self.session_name} | claim_daily_reward REQUEST: URL=https://qlyuker.io/api/tasks/daily, Headers={dict(http_client.headers)}, Payload=None")
+            logger.debug(f"{self.session_name} | claim_daily_reward REQUEST: URL=https://qlyuker.io/api/tasks/daily, Headers={dict(http_client.headers)}, Payload=None")
             response = await http_client.post(
                 url='https://qlyuker.io/api/tasks/daily'
             )
@@ -411,7 +414,7 @@ class Tapper:
         try:
             http_client.headers['Referer'] = 'https://qlyuker.io/tasks'
             json_data = {"taskId": task_id}
-            #logger.debug(f"{self.session_name} | check_task REQUEST: URL=https://qlyuker.io/api/tasks/check, Headers={dict(http_client.headers)}, Payload={json_data}")
+            logger.debug(f"{self.session_name} | check_task REQUEST: URL=https://qlyuker.io/api/tasks/check, Headers={dict(http_client.headers)}, Payload={json_data}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/tasks/check',
                 json=json_data
@@ -679,8 +682,8 @@ class Tapper:
                     traceback.print_exc()
                     await asyncio.sleep(3)
 
-async def run_tapper(tg_client: Client, proxy: str | None):
-    try:
-        await Tapper(tg_client=tg_client).run(proxy=proxy)
-    except InvalidSession:
-        logger.error(f"{tg_client.name} | Invalid Session")
+    async def run_tapper(tg_client: Client, proxy: str | None):
+        try:
+            await Tapper(tg_client=tg_client).run(proxy=proxy)
+        except InvalidSession:
+            logger.error(f"{tg_client.name} | Invalid Session")
