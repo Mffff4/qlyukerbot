@@ -409,11 +409,19 @@ class Tapper:
 
             increment = next_info.get('increment', 0)
             price = next_info.get('price', float('inf'))
-
             if price == 0:
                 efficiency = float('inf')
+                time_to_accumulate = 0
             else:
-                efficiency = increment / price
+                current_income_per_sec = self.mine_per_sec + self.energy_per_sec
+                if current_income_per_sec > 0:
+                    time_to_accumulate = price / current_income_per_sec
+                else:
+                    time_to_accumulate = float('inf')
+
+                efficiency = increment / price if price != 0 else float('inf')
+
+            roi = time_to_accumulate / increment if increment != 0 else float('inf')
 
             condition = u.get('condition', {})
             if not await self.check_condition(u, condition, user_data):
@@ -425,15 +433,19 @@ class Tapper:
                 "increment": increment,
                 "price": price,
                 "level": u['level'],
-                "kind": u['kind']
+                "kind": u['kind'],
+                "time_to_accumulate": time_to_accumulate,
+                "roi": roi
             })
 
         if not upgrade_scores:
             logger.info(f"{self.session_name} | No upgrades meet the conditions for purchase.")
             return []
 
-        sorted_upgrades = sorted(upgrade_scores, key=lambda x: (-x['efficiency'], x['price']))
-
+        sorted_upgrades = sorted(
+            upgrade_scores,
+            key=lambda x: (x['roi'], -x['efficiency'])
+        )
         return sorted_upgrades
 
     async def check_condition(self, upgrade, condition, user_data):
