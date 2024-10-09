@@ -16,7 +16,7 @@
 ## Recommendation before Use
 # 🔥🔥 Use PYTHON version 3.10 🔥🔥
 
-> README in Russian available [here](README.md)
+> README на русском языке доступно [здесь](README.md)
 
 ## Functionality  
 |                   **Functionality**                   | **Supported** |
