@@ -114,6 +114,7 @@ MAX_RETRIES = 5
 |----------------------|-------------------------------------------------------------------------------------|
 | Bitcoin (BTC)|bc1qt84nyhuzcnkh2qpva93jdqa20hp49edcl94nf6| 
 | Ethereum (ETH)|0xc935e81045CAbE0B8380A284Ed93060dA212fa83| 
+|TON|UQBlvCgM84ijBQn0-PVP3On0fFVWds5SOHilxbe33EDQgryz|
 | Binance Coin (BNB)|0xc935e81045CAbE0B8380A284Ed93060dA212fa83| 
 | Solana (SOL)|3vVxkGKasJWCgoamdJiRPy6is4di72xR98CDj2UdS1BE| 
 | Ripple (XRP)|rPJzfBcU6B8SYU5M8h36zuPcLCgRcpKNB4| 
