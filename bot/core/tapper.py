@@ -98,7 +98,7 @@ class Tapper:
                         self.last_name = information.last_name or ''
                         self.username = information.username or ''
                 except Exception as e:
-                    logger.error(f"{self.session_name} | Error fetching user info: {e}")
+                    pass
 
                 if not with_tg:
                     await self.tg_client.disconnect()
@@ -405,7 +405,7 @@ class Tapper:
                 logger.info(f"{self.session_name} | Finished attempting tasks. Will try again in 8 hours.")
                 await asyncio.sleep(8 * 3600)
             except Exception as error:
-                logger.error(f"{self.session_name} | [Tasks Collection] Error: {error}")
+                #logger.error(f"{self.session_name} | [Tasks Collection] Error: {error}")
                 import traceback
                 traceback.print_exc()
                 await asyncio.sleep(60)
