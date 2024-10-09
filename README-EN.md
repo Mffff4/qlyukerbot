@@ -1,131 +1,117 @@
+
 # Qlyuker Bot
-🔗 Automated Telegram bot.
 
-[![Static Badge](https://img.shields.io/badge/Telegram-Bot_Link-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/qlyukerbot/start?startapp=bro-228618799)
-[![Static Badge](https://img.shields.io/badge/Telegram-Channel_Link-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/+ap1Yd23CiuVkOTEy)
+[![Bot Link](https://img.shields.io/badge/Telegram-Bot_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/qlyukerbot/start?startapp=bro-228618799)
+[![Channel Link](https://img.shields.io/badge/Telegram-Channel_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/+ap1Yd23CiuVkOTEy)
 
-## Table of Contents
-- [Recommendation before Use](#recommendation-before-use)
-- [Functionality](#functionality)
-- [Settings](#settings)
-- [Quick Start](#quick-start)
-- [Getting API Keys](#getting-api-keys)
-- [Installation](#installation)
-- [Acknowledgments](#acknowledgments)
+---
 
-## Recommendation before Use
-# 🔥🔥 Use PYTHON version 3.10 🔥🔥
+## 📑 Table of Contents
+1. [Description](#description)
+2. [Key Features](#key-features)
+3. [Installation](#installation)
+   - [Quick Start](#quick-start)
+   - [Manual Installation](#manual-installation)
+4. [Settings](#settings)
+5. [Support and Donations](#support-and-donations)
+6. [Contact](#contact)
 
-> README на русском языке доступно [здесь](README.md)
+---
 
-## Functionality  
-|                   **Functionality**                   | **Supported** |
-|:-----------------------------------------------------:|:-------------:|
-|                     **Multithreading**                |        ✅     | 
-|                **Proxy Binding to Session**           |        ✅     | 
-|       **Auto Registration of Account via Your Ref Link** |        ✅     |
-|             **Automatic Booster Upgrades**            |        ✅     |
-|                  **Daily Bonus Collection**           |        ✅     |
-|                  **Session Creation via QR Code**     |        ✅     |
-|                  **Support for pyrogram .session**    |        ✅     |
+## 📜 Description
+**Qlyuker Bot** is a powerful bot for Telegram that helps automate interaction with the bot. It supports multithreading, proxy integration, and session creation via QR codes.
 
-## Settings
-| Settings                     | Description                                                                                       |
-|-------------------------------|------------------------------------------------------------------------------------------------|
-| **API_ID**                    | Unique application identifier needed to connect to the Telegram API. Type: `int`.           |
-| **API_HASH**                  | Application hash used for authentication and security when connecting to the API. Type: `str`. |
-| **USE_PROXY_FROM_FILE**       | Flag indicating whether to use proxies from the file `bot/config/proxies.txt`. Type: `bool`. Values: `True` or `False`. |
-| **REF_ID**                    | Referral argument used in links to track referrals. Type: `str`. Example: `"bro-228618799"`. |
-| **TAPS**                      | List of values determining the number of clicks per cycle. Type: `list`. Default values: `[10, 100]`. |
-| **SLEEP_BETWEEN_TAPS**       | List of values determining the delay between clicks. Type: `list`. Default values: `[1, 3]`. |
-| **ENERGY_THRESHOLD**          | Energy threshold at which actions begin. Type: `float`. Default value: `0.05`.                 |
-| **SLEEP_ON_LOW_ENERGY**       | Waiting time when energy level is low. Type: `int`. Default value: `60` (in seconds).        |
-| **SLEEP_AFTER_UPGRADE**      | Delay time after performing an upgrade. Type: `int`. Default value: `1` (in seconds).         |
-| **DELAY_BETWEEN_TASKS**      | List of values determining the delay between task executions. Type: `list`. Default values: `[3, 15]`. |
-| **UPGRADE_CHECK_DELAY**      | Delay between checks for available upgrades. Type: `int`. Default value: `5` (in seconds).    |
-| **RETRY_DELAY**               | Waiting time before retrying in case of an error. Type: `int`. Default value: `3` (in seconds). |
-| **MAX_RETRIES**               | Maximum number of attempts to execute a task in case of an error. Type: `int`. Default value: `5`. |
+---
 
-## Quick Start 📚
-For quick installation and subsequent launch, run the `run.bat` file on Windows or `run.sh` on Linux.
+## 🌟 Key Features
+- 🔄 **Multithreading** — supports parallel processes to increase work speed.
+- 🔐 **Proxy binding to session** — allows secure work through proxy servers.
+- 📲 **Auto-account registration** — quick account registration via referral links.
+- 🎁 **Bonus automation** — automatic collection of daily bonuses without manual actions.
+- 📸 **Session creation via QR code** — fast and convenient session generation through a mobile app.
+- 📄 **Support for pyrogram session format (.session)** — easy integration with the Telegram API for session storage.
 
-## Prerequisites
-Before you start, make sure you have the following installed:
-- [Python](https://www.python.org/downloads/) **version 3.10**
+---
 
-## Getting API Keys
-1. Go to [my.telegram.org](https://my.telegram.org) and log in using your phone number.
-2. Select **"API development tools"** and fill out the form to register a new application.
-3. Write down `API_ID` and `API_HASH` in the `.env` file provided after registering your application.
+## 🛠️ Installation
 
-## Installation
-You can download the [**Repository**](https://github.com/Mffff4/qlyukerbot.git) by cloning it to your system and installing the required dependencies:
+### Quick Start
+1. **Download the project:**
+   ```bash
+   git clone https://github.com/Mffff4/qlyukerbot.git
+   cd qlyukerbot
+   ```
 
-```shell
-git clone https://github.com/Mffff4/qlyukerbot.git
-cd qlyukerbot
+2. **Install dependencies:**
+   - **Windows**:
+     ```bash
+     run.bat
+     ```
+   - **Linux**:
+     ```bash
+     run.sh
+     ```
+
+3. **Obtain API keys:**
+   - Go to [my.telegram.org](https://my.telegram.org) and get your `API_ID` and `API_HASH`.
+   - Add this information to the `.env` file.
+
+4. **Run the bot:**
+   ```bash
+   python3 main.py --action 3  # Run the bot
+   ```
+
+### Manual Installation
+1. **Linux:**
+   ```bash
+   sudo sh install.sh
+   python3 -m venv venv
+   source venv/bin/activate
+   pip3 install -r requirements.txt
+   cp .env-example .env
+   nano .env  # Add your API_ID and API_HASH
+   python3 main.py
+   ```
+
+2. **Windows:**
+   ```bash
+   python -m venv venv
+   venv\Scriptsctivate
+   pip install -r requirements.txt
+   copy .env-example .env
+   python main.py
+   ```
+
+---
+
+## ⚙️ Settings
+
+Example `.env` file configuration:
+
+```plaintext
+API_ID = "Your unique ID"
+API_HASH = "Your hash"
+USE_PROXY_FROM_FILE = True
+REF_ID = "bro-228618799"
+TAPS = [10, 100]
+SLEEP_BETWEEN_TAPS = [1, 3]
+ENERGY_THRESHOLD = 0.05
+SLEEP_ON_LOW_ENERGY = 60
+SLEEP_AFTER_UPGRADE = 1
+DELAY_BETWEEN_TASKS = [3, 15]
+UPGRADE_CHECK_DELAY = 5
+RETRY_DELAY = 3
+MAX_RETRIES = 5
 ```
 
-Then for automatic installation enter:
+---
 
-### Windows
-```shell
-run.bat
-```
+## 💰 Support and Donations
 
-### Linux
-```shell
-run.sh
-```
+Support the development using cryptocurrencies or platforms:
 
-## Manual Installation on Linux
-```shell
-sudo sh install.sh
-python3 -m venv venv
-source venv/bin/activate
-pip3 install -r requirements.txt
-cp .env-example .env
-nano .env  # Here you must specify your API_ID and API_HASH, the rest is taken by default
-python3 main.py
-```
-
-Also, for quick launching you can use arguments, for example:
-```shell
-~/qlyukerbot >>> python3 main.py --action (1/2/3/4)
-# Or
-~/qlyukerbot >>> python3 main.py -a (1/2/3/4)
-
-#1. Create a session
-#2. Create a session via QR
-#3. Start the bot
-#4. Start the bot via Telegram (Beta)
-```
-
-## Manual Installation on Windows
-```shell
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-copy .env-example .env
-# Specify your API_ID and API_HASH, the rest is taken by default
-python main.py
-```
-
-Also, for quick launching you can use arguments, for example:
-```shell
-~/qlyukerbot >>> python main.py --action (1/2/3/4)
-# Or
-~/qlyukerbot >>> python main.py -a (1/2/3/4)
-
-#1. Create a session
-#2. Create a session via QR
-#3. Start the bot
-#4. Start the bot via Telegram (Beta)
-```
-
-## Acknowledgments  
-|                   Token                   | Wallet Address |
-|:-------------------------------------------:|:--------------:|
+| Currency               | Wallet Address                                                                     |
+|------------------------|------------------------------------------------------------------------------------|
 | Bitcoin (BTC)|bc1qt84nyhuzcnkh2qpva93jdqa20hp49edcl94nf6| 
 | Ethereum (ETH)|0xc935e81045CAbE0B8380A284Ed93060dA212fa83| 
 | Binance Coin (BNB)|0xc935e81045CAbE0B8380A284Ed93060dA212fa83| 
@@ -136,3 +122,11 @@ Also, for quick launching you can use arguments, for example:
 | Litecoin (LTC)|ltc1qcg8qesg8j4wvk9m7e74pm7aanl34y7q9rutvwu| 
 | Matic|0xc935e81045CAbE0B8380A284Ed93060dA212fa83| 
 | Tron (TRX)|TQkDWCjchCLhNsGwr4YocUHEeezsB4jVo5| 
+
+
+---
+
+## 📞 Contact
+
+If you have any questions or suggestions:
+- **Telegram**: [Join our channel](https://t.me/+ap1Yd23CiuVkOTEy)
