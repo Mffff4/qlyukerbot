@@ -1,10 +1,9 @@
 import random
 import asyncio
 from time import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from random import randint
 from urllib.parse import unquote
-import json
 
 import aiohttp
 from aiohttp_proxy import ProxyConnector
@@ -44,6 +43,8 @@ class Tapper:
         self.restore_energy_usage_today = 0
         self.last_restore_energy_reset_date = None
         self.restore_energy_daily_limit = 6
+        self.restore_energy_cooldown = timedelta(hours=1)
+        self.last_restore_energy_purchase_time = None
         self.onboarding = 0
 
     async def get_tg_web_data(self, proxy: str | None) -> str:
@@ -116,21 +117,34 @@ class Tapper:
         try:
             http_client.headers['Onboarding'] = '0'
 
+            json_data = {"startData": tg_web_data}
+            #logger.debug(f"{self.session_name} | login REQUEST: URL=https://qlyuker.io/api/auth/start, Headers={dict(http_client.headers)}, Payload={json_data}")
+
             response = await http_client.post(
                 url='https://qlyuker.io/api/auth/start',
-                json={"startData": tg_web_data}
+                json=json_data
             )
-            response.raise_for_status()
+            if response.status != 200:
+                response_text = await response.text()
+                logger.error(f"{self.session_name} | login FAILED: Status={response.status}, Response={response_text}")
+                response.raise_for_status()
+
             response_json = await response.json()
             http_client.headers['Onboarding'] = '2'
-
             await self.process_auth_data(response_json)
-
             logger.info(f"{self.session_name} | Successfully logged in.")
             return response_json
 
+        except aiohttp.ClientResponseError as error:
+            try:
+                response_text = await error.response.text()
+            except Exception:
+                response_text = "No response body"
+            logger.error(f"{self.session_name} | ClientResponseError during login: Status={error.status}, Message={error.message}, Response={response_text}")
+            await asyncio.sleep(3)
+            return {}
         except Exception as error:
-            logger.error(f"{self.session_name} | Error during login: {error}")
+            logger.error(f"{self.session_name} | Unexpected error during login: {error}")
             await asyncio.sleep(3)
             return {}
 
@@ -173,6 +187,7 @@ class Tapper:
                     if current_date != self.last_restore_energy_reset_date:
                         self.restore_energy_usage_today = 0
                         self.last_restore_energy_reset_date = current_date
+                    self.last_restore_energy_purchase_time = upgraded_at
         else:
             self.restore_energy_usage_today = 0
 
@@ -199,17 +214,29 @@ class Tapper:
                 "clientTime": client_time,
                 "taps": taps
             }
+            #logger.debug(f"{self.session_name} | send_taps REQUEST: URL=https://qlyuker.io/api/game/sync, Headers={dict(http_client.headers)}, Payload={json_data}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/game/sync',
                 json=json_data
             )
-            response.raise_for_status()
+            if response.status != 200:
+                response_text = await response.text()
+                logger.error(f"{self.session_name} | send_taps FAILED: Status={response.status}, Response={response_text}")
+                response.raise_for_status()
 
             response_json = await response.json()
             logger.info(f"{self.session_name} | Sent {taps} taps. Energy used: {taps}.")
             return response_json
+        except aiohttp.ClientResponseError as error:
+            try:
+                response_text = await error.response.text()
+            except Exception:
+                response_text = "No response body"
+            logger.error(f"{self.session_name} | ClientResponseError during send_taps: Status={error.status}, Message={error.message}, Response={response_text}")
+            await asyncio.sleep(3)
+            return {}
         except Exception as error:
-            logger.error(f"{self.session_name} | Error during send_taps: {error}")
+            logger.error(f"{self.session_name} | Unexpected error during send_taps: {error}")
             await asyncio.sleep(3)
             return {}
 
@@ -218,23 +245,21 @@ class Tapper:
             http_client.headers['Referer'] = 'https://qlyuker.io/upgrades'
             http_client.headers['Onboarding'] = str(self.onboarding)
             json_data = {"upgradeId": upgrade_id}
-            logger.debug(f"{self.session_name} | buy_upgrade REQUEST: "
-                        f"URL=https://qlyuker.io/api/upgrades/buy, "
-                        f"Headers={dict(http_client.headers)}, "
-                        f"Payload={json.dumps(json_data)}")
+            logger.debug(f"{self.session_name} | buy_upgrade REQUEST: URL=https://qlyuker.io/api/upgrades/buy, Headers={dict(http_client.headers)}, Payload={json_data}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/upgrades/buy',
                 json=json_data
             )
             if response.status != 200:
                 response_text = await response.text()
-                logger.error(f"{self.session_name} | buy_upgrade '{upgrade_id}' FAILED: "
-                            f"Status={response.status}, Response={response_text}")
-                response.raise_for_status() 
+                logger.error(f"{self.session_name} | buy_upgrade '{upgrade_id}' FAILED: Status={response.status}, Response={response_text}")
+                response.raise_for_status()
+
             response_json = await response.json()
             await self.update_upgrade_after_purchase(response_json)
             logger.info(f"{self.session_name} | Successfully purchased upgrade '{upgrade_id}'.")
-            
+            if upgrade_id == 'restoreEnergy':
+                self.last_restore_energy_purchase_time = datetime.utcnow().replace(tzinfo=timezone.utc)
             return response_json
 
         except aiohttp.ClientResponseError as error:
@@ -242,12 +267,9 @@ class Tapper:
                 response_text = await error.response.text()
             except Exception:
                 response_text = "No response body"
-            logger.error(f"{self.session_name} | ClientResponseError during buy_upgrade '{upgrade_id}': "
-                        f"Status={error.status}, Message={error.message}, Response={response_text}")
-            
+            logger.error(f"{self.session_name} | ClientResponseError during buy_upgrade '{upgrade_id}': Status={error.status}, Message={error.message}, Response={response_text}")
             await asyncio.sleep(3)
             return {}
-        
         except Exception as error:
             logger.error(f"{self.session_name} | Unexpected error during buy_upgrade '{upgrade_id}': {error}")
             await asyncio.sleep(3)
@@ -282,21 +304,30 @@ class Tapper:
             self.mine_per_sec = buy_response.get('minePerSec', self.mine_per_sec)
             self.energy_per_sec = buy_response.get('energyPerSec', self.energy_per_sec)
 
-            if upgrade_id == 'restoreEnergy':
-                self.restore_energy_usage_today += 1
-
     async def claim_daily_reward(self, http_client: aiohttp.ClientSession) -> dict:
         try:
             http_client.headers['Referer'] = 'https://qlyuker.io/tasks'
+            #logger.debug(f"{self.session_name} | claim_daily_reward REQUEST: URL=https://qlyuker.io/api/tasks/daily, Headers={dict(http_client.headers)}, Payload=None")
             response = await http_client.post(
                 url='https://qlyuker.io/api/tasks/daily'
             )
-            response.raise_for_status()
+            if response.status != 200:
+                response_text = await response.text()
+                logger.error(f"{self.session_name} | claim_daily_reward FAILED: Status={response.status}, Response={response_text}")
+                response.raise_for_status()
+
             response_json = await response.json()
             logger.info(f"{self.session_name} | Daily reward claimed successfully.")
             return response_json
+        except aiohttp.ClientResponseError as error:
+            try:
+                response_text = await error.response.text()
+            except Exception:
+                response_text = "No response body"
+            logger.error(f"{self.session_name} | ClientResponseError during claim_daily_reward: Status={error.status}, Message={error.message}, Response={response_text}")
+            return {}
         except Exception as error:
-            logger.error(f"{self.session_name} | Error during claim_daily_reward: {error}")
+            logger.error(f"{self.session_name} | Unexpected error during claim_daily_reward: {error}")
             return {}
 
     async def collect_daily_reward(self, http_client: aiohttp.ClientSession, proxy: str | None):
@@ -392,14 +423,28 @@ class Tapper:
         try:
             http_client.headers['Referer'] = 'https://qlyuker.io/tasks'
             json_data = {"taskId": task_id}
+            #logger.debug(f"{self.session_name} | check_task REQUEST: URL=https://qlyuker.io/api/tasks/check, Headers={dict(http_client.headers)}, Payload={json_data}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/tasks/check',
                 json=json_data
             )
-            response.raise_for_status()
+            if response.status != 200:
+                response_text = await response.text()
+                logger.error(f"{self.session_name} | check_task '{task_id}' FAILED: Status={response.status}, Response={response_text}")
+                response.raise_for_status()
+
             response_json = await response.json()
             return response_json
+        except aiohttp.ClientResponseError as error:
+            try:
+                response_text = await error.response.text()
+            except Exception:
+                response_text = "No response body"
+            logger.error(f"{self.session_name} | ClientResponseError during check_task '{task_id}': Status={error.status}, Message={error.message}, Response={response_text}")
+            await asyncio.sleep(3)
+            return {}
         except Exception as error:
+            logger.error(f"{self.session_name} | Unexpected error during check_task '{task_id}': {error}")
             await asyncio.sleep(3)
             return {}
 
@@ -511,6 +556,10 @@ class Tapper:
         if self.restore_energy_usage_today >= self.restore_energy_daily_limit:
             return False
 
+        if self.last_restore_energy_purchase_time:
+            if datetime.utcnow().replace(tzinfo=timezone.utc) - self.last_restore_energy_purchase_time < self.restore_energy_cooldown:
+                return False
+
         return True
 
     async def run(self, proxy: str | None) -> None:
@@ -564,6 +613,7 @@ class Tapper:
                                     logger.info(f"{self.session_name} | Energy restored to {current_energy}.")
                                     logger.info(f"{self.session_name} | Sleeping for {settings.SLEEP_AFTER_UPGRADE} seconds after upgrade.")
                                     await asyncio.sleep(settings.SLEEP_AFTER_UPGRADE)
+                                    continue
                                 else:
                                     logger.info(f"{self.session_name} | Unable to restore energy at this time.")
                             else:
