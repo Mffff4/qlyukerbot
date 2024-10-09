@@ -11,30 +11,33 @@
 # 🔥🔥 Use PYTHON version 3.10 🔥🔥
 
 ## Features
-|                    Feature                     |   Supported    |
-|:----------------------------------------------:|:--------------:|
-|                 Multithreading                 |       ✅        |
-|        Proxy binding to the session            |       ✅        |
-| Auto-registration of the account via ref link  |       ✅        |
-|      Automatic booster upgrades                |       ✅        |
-|      Pyrogram .session file support            |       ✅        |
-|     Session creation via QR code               |       ✅        |
+|                   **Functionality**                   | **Supported** |
+|:-----------------------------------------------------:|:-------------:|
+|                     **Multithreading**                 |      ✅       | 
+|                **Proxy Binding to Session**           |      ✅       | 
+|       **Auto-registration of Accounts via Referral Link** |      ✅       |
+|             **Automatic Booster Upgrades**            |      ✅       |
+|                **Daily Bonus Collection**             |      ✅       |
+|                  **Session Creation via QR Code**     |      ✅       |
+|                  **Support for pyrogram .session**    |      ✅       |
 
 
 ## [Settings](https://github.com/Mffff4/qlyukerbot/blob/main/.env-example/)
-|        Setting           |                                     Description                                      |
-|:------------------------:|:------------------------------------------------------------------------------------:|
-|    **API_ID / API_HASH**  | Data from the platform where the Telegram session will be launched (default - android) |
-|  **MIN_TAPS / MAX_TAPS**  |        Number of taps per cycle (default from 10 to 100)                              |
-| **MIN_SLEEP_BETWEEN_TAPS**|     Minimum delay between taps (default - 1 second)                                  |
-| **MAX_SLEEP_BETWEEN_TAPS**|     Maximum delay between taps (default - 3 seconds)                                 |
-|   **ENERGY_THRESHOLD**    |        Energy threshold for actions (default - 0.05)                                 |
-|   **SLEEP_ON_LOW_ENERGY** |     Waiting time with low energy (default - 15 minutes)                              |
-|   **SLEEP_AFTER_UPGRADE** |     Delay after upgrading (default - 1 second)                                       |
-|   **SLEEP_AFTER_TAPS**    |     Delay after all taps are done (default - 0 seconds)                              |
-|         **MIN_DELAY_BETWEEN_TASKS**          |       Minimum delay time between task executions (default - 3 seconds)       |
-|         **MAX_DELAY_BETWEEN_TASKS**          |       Maximum delay time between task executions (default - 15 seconds) 
-| **USE_PROXY_FROM_FILE**   |     Use proxy from `bot/config/proxies.txt` (True / False)                           |
+| Settings                     | Description                                                                                   |
+|------------------------------|-----------------------------------------------------------------------------------------------|
+| **API_ID**                   | Unique identifier for the application required to connect to the Telegram API. Type: `int`.  |
+| **API_HASH**                 | Hash of the application used for authentication and security when connecting to the API. Type: `str`. |
+| **USE_PROXY_FROM_FILE**      | Flag indicating whether to use a proxy from the file `bot/config/proxies.txt`. Type: `bool`. Values: `True` or `False`. |
+| **REF_ID**                   | Referral argument used in links for tracking referrals. Type: `str`. Example: `"bro-228618799"`. |
+| **TAPS**                     | List of values determining the number of taps to perform in one cycle. Type: `list`. Default values: `[10, 100]`. |
+| **SLEEP_BETWEEN_TAPS**      | List of values determining the delay between taps. Type: `list`. Default values: `[1, 3]`.    |
+| **ENERGY_THRESHOLD**         | Energy threshold at which actions begin. Type: `float`. Default value: `0.05`.               |
+| **SLEEP_ON_LOW_ENERGY**      | Waiting time when energy is low. Type: `int`. Default value: `60` (in seconds).              |
+| **SLEEP_AFTER_UPGRADE**     | Delay time after performing an upgrade. Type: `int`. Default value: `1` (in seconds).       |
+| **DELAY_BETWEEN_TASKS**     | List of values determining the delay between task executions. Type: `list`. Default values: `[3, 15]`. |
+| **UPGRADE_CHECK_DELAY**     | Delay between checks for upgrade availability. Type: `int`. Default value: `5` (in seconds). |
+| **RETRY_DELAY**              | Waiting time before retrying in case of an error. Type: `int`. Default value: `3` (in seconds). |
+| **MAX_RETRIES**              | Maximum number of attempts to perform a task in case of an error. Type: `int`. Default value: `5`. |
 
 
 ## Quick Start 📚
