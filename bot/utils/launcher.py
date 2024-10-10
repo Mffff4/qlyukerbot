@@ -55,7 +55,8 @@ async def get_tg_clients() -> list[Client]:
     session_names = get_session_names()
 
     if not session_names:
-        raise FileNotFoundError("Not found session files")
+        logger.warning("No session files found. Please create a session.")
+        return []
 
     if not settings.API_ID or not settings.API_HASH:
         raise ValueError("API_ID and API_HASH not found in the .env file.")
@@ -104,9 +105,13 @@ async def process() -> None:
         print("QR code authentication was successful!")
     elif action == 3:
         tg_clients = await get_tg_clients()
+        if not tg_clients:
+            return
         await run_tasks(tg_clients=tg_clients)
     elif action == 4:
         tg_clients = await get_tg_clients()
+        if not tg_clients:
+            return
         logger.info("Send /help command in Saved Messages\n")
         await compose(tg_clients)
 
