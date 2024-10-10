@@ -151,6 +151,7 @@ class Tapper:
         shared_config = data.get("sharedConfig", {})
         self.upgrade_delay = shared_config.get("upgradeDelay", {})
         self.onboarding = user.get("onboarding", self.onboarding)
+        
         for upgrade in upgrades:
             upgrade_id = upgrade.get('id')
             if not upgrade_id:
@@ -167,6 +168,7 @@ class Tapper:
                 "condition": upgrade.get('condition', {}),
                 "next": upgrade.get('next', {})
             }
+        
         self.current_coins = user.get("currentCoins", self.current_coins)
         self.current_energy = user.get("currentEnergy", self.current_energy)
         self.mine_per_sec = user.get("minePerSec", self.mine_per_sec)
@@ -176,7 +178,7 @@ class Tapper:
         self.friends_count = user.get("friendsCount", 0)
 
         for upgrade_id, upgrade in self.upgrades.items():
-            if upgrade_id.startswith('restoreEnergy') or upgrade_id.startswith('promo'):
+            if upgrade_id.startswith('restoreEnergy') or upgrade_id.startswith('promo') or upgrade_id.startswith('u'):
                 upgraded_at_field = upgrade.get('upgradedAt')
                 if upgraded_at_field:
                     upgraded_at = await self.parse_upgraded_at(upgraded_at_field)
@@ -187,8 +189,9 @@ class Tapper:
                             self.restore_energy_usage_today = 0
                             self.last_restore_energy_reset_date = current_date
                         self.last_restore_energy_purchase_time[upgrade_id] = upgraded_at
+
         for upgrade_id, upgrade in self.upgrades.items():
-            if not upgrade_id.startswith('restoreEnergy') and not upgrade_id.startswith('promo'):
+            if not (upgrade_id.startswith('restoreEnergy') or upgrade_id.startswith('promo') or upgrade_id.startswith('u')):
                 self.last_restore_energy_purchase_time.setdefault(upgrade_id, None)
 
     async def parse_upgraded_at(self, upgraded_at):
@@ -255,9 +258,15 @@ class Tapper:
             if response.status != 200:
                 response_text = await response.text()
                 logger.error(f"{self.session_name} | buy_upgrade '{upgrade_id}' FAILED: Status={response.status}, Response={response_text}")
-                if upgrade_id == 'restoreEnergy' and 'Слишком рано для улучшения' in response_text:
-                    self.last_restore_energy_purchase_time[upgrade_id] = datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(hours=1)
-                    logger.info(f"{self.session_name} | Кулдаун на 'restoreEnergy' установлен на 1 час.")
+                if 'Слишком рано для улучшения' in response_text:
+                    # Определяем текущий уровень обновления
+                    current_level = self.upgrades[upgrade_id].get('level', 0)
+                    # Получаем задержку для текущего уровня
+                    delay_seconds = self.upgrade_delay.get(str(current_level), 0)
+                    # Устанавливаем время следующего доступного обновления
+                    next_available_time = datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(seconds=delay_seconds)
+                    self.last_restore_energy_purchase_time[upgrade_id] = next_available_time
+                    logger.info(f"{self.session_name} | Кулдаун на '{upgrade_id}' установлен на {delay_seconds} секунд.")
                 response.raise_for_status()
             response_json = await response.json()
             await self.update_upgrade_after_purchase(response_json)
@@ -421,7 +430,7 @@ class Tapper:
             )
             if response.status != 200:
                 response_text = await response.text()
-                logger.error(f"{self.session_name} | check_task '{task_id}' FAILED: Status={response.status}, Response={response_text}")
+                #logger.error(f"{self.session_name} | check_task '{task_id}' FAILED: Status={response.status}, Response={response_text}")
                 response.raise_for_status()
             response_json = await response.json()
             return response_json
@@ -544,16 +553,23 @@ class Tapper:
             return False
 
         if upgrade.get('maxLevel', False):
+            logger.info(f"{self.session_name} | Upgrade '{upgrade_id}' has reached max level.")
             return False
 
-        if upgrade_id.startswith('restoreEnergy') or upgrade_id.startswith('promo'):
+        if upgrade_id.startswith('restoreEnergy') or upgrade_id.startswith('promo') or upgrade_id.startswith('u'):
             if upgrade.get('dayLimitation', 0) > 0:
                 if self.restore_energy_usage_today >= self.restore_energy_daily_limit:
+                    logger.info(f"{self.session_name} | Daily limit for '{upgrade_id}' reached.")
                     return False
             last_purchase = self.last_restore_energy_purchase_time.get(upgrade_id)
             if last_purchase:
-                delay_seconds = self.upgrade_delay.get(str(upgrade.get('level', 0)), 0)
-                if datetime.utcnow().replace(tzinfo=timezone.utc) - last_purchase < timedelta(seconds=delay_seconds):
+                current_time = datetime.utcnow().replace(tzinfo=timezone.utc)
+                current_level = upgrade.get('level', 0)
+                delay_seconds = self.upgrade_delay.get(str(current_level), 0)
+                elapsed_time = (current_time - last_purchase).total_seconds()
+                if elapsed_time < delay_seconds:
+                    remaining_time = delay_seconds - elapsed_time
+                    logger.info(f"{self.session_name} | Upgrade '{upgrade_id}' is on cooldown. Remaining time: {int(remaining_time)} seconds.")
                     return False
             return True
         return True
