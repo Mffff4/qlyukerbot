@@ -47,6 +47,7 @@ class Tapper:
         self.last_restore_energy_purchase_time = {}
         self.onboarding = 0
         self.upgrade_delay = {}
+        self.friends_count = 0
 
     async def get_tg_web_data(self, proxy: str | None) -> str:
         async with self.client_lock:
@@ -117,7 +118,6 @@ class Tapper:
         try:
             http_client.headers['Onboarding'] = '0'
             json_data = {"startData": tg_web_data}
-            #logger.debug(f"{self.session_name} | login REQUEST: URL=https://qlyuker.io/api/auth/start, Headers={dict(http_client.headers)}, Payload={json_data}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/auth/start',
                 json=json_data
@@ -130,6 +130,8 @@ class Tapper:
             http_client.headers['Onboarding'] = '2'
             await self.process_auth_data(response_json)
             logger.info(f"{self.session_name} | Successfully logged in.")
+            for cookie in http_client.cookie_jar:
+                pass
             return response_json
 
         except aiohttp.ClientResponseError as error:
@@ -155,7 +157,6 @@ class Tapper:
         for upgrade in upgrades:
             upgrade_id = upgrade.get('id')
             if not upgrade_id:
-                logger.warning("Received upgrade without ID, skipping.")
                 continue
             self.upgrades[upgrade_id] = {
                 "id": upgrade_id,
@@ -217,7 +218,6 @@ class Tapper:
                 "clientTime": client_time,
                 "taps": taps
             }
-            #logger.debug(f"{self.session_name} | send_taps REQUEST: URL=https://qlyuker.io/api/game/sync, Headers={dict(http_client.headers)}, Payload={json_data}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/game/sync',
                 json=json_data
@@ -250,7 +250,6 @@ class Tapper:
             http_client.headers['Referer'] = 'https://qlyuker.io/upgrades'
             http_client.headers['Onboarding'] = str(self.onboarding)
             json_data = {"upgradeId": upgrade_id}
-            #logger.debug(f"{self.session_name} | buy_upgrade REQUEST: URL=https://qlyuker.io/api/upgrades/buy, Headers={dict(http_client.headers)}, Payload={json_data}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/upgrades/buy',
                 json=json_data
@@ -259,11 +258,8 @@ class Tapper:
                 response_text = await response.text()
                 logger.error(f"{self.session_name} | buy_upgrade '{upgrade_id}' FAILED: Status={response.status}, Response={response_text}")
                 if 'Слишком рано для улучшения' in response_text:
-                    # Определяем текущий уровень обновления
                     current_level = self.upgrades[upgrade_id].get('level', 0)
-                    # Получаем задержку для текущего уровня
                     delay_seconds = self.upgrade_delay.get(str(current_level), 0)
-                    # Устанавливаем время следующего доступного обновления
                     next_available_time = datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(seconds=delay_seconds)
                     self.last_restore_energy_purchase_time[upgrade_id] = next_available_time
                     logger.info(f"{self.session_name} | Кулдаун на '{upgrade_id}' установлен на {delay_seconds} секунд.")
@@ -317,7 +313,6 @@ class Tapper:
     async def claim_daily_reward(self, http_client: aiohttp.ClientSession) -> dict:
         try:
             http_client.headers['Referer'] = 'https://qlyuker.io/tasks'
-            #logger.debug(f"{self.session_name} | claim_daily_reward REQUEST: URL=https://qlyuker.io/api/tasks/daily, Headers={dict(http_client.headers)}, Payload=None")
             response = await http_client.post(
                 url='https://qlyuker.io/api/tasks/daily'
             )
@@ -339,21 +334,9 @@ class Tapper:
             logger.error(f"{self.session_name} | Unexpected error during claim_daily_reward: {error}")
             return {}
 
-    async def collect_daily_reward(self, http_client: aiohttp.ClientSession, proxy: str | None):
-        while True:
+    async def collect_daily_reward(self, http_client: aiohttp.ClientSession):
+        while settings.ENABLE_CLAIM_REWARDS:
             try:
-                if not self.tg_web_data:
-                    self.tg_web_data = await self.get_tg_web_data(proxy=proxy)
-                if not self.tg_web_data:
-                    logger.error(f"{self.session_name} | Failed to get tg_web_data in collect_daily_bonus")
-                    await asyncio.sleep(60)
-                    continue
-                login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
-                if not login_data:
-                    logger.error(f"{self.session_name} | Login failed during collect_daily_bonus")
-                    await asyncio.sleep(60)
-                    continue
-                self.user_data = login_data.get('user', {})
                 daily_reward = self.user_data.get('dailyReward', {})
                 day = daily_reward.get('day', 0)
                 claimed = daily_reward.get('claimed', None)
@@ -375,22 +358,10 @@ class Tapper:
                 traceback.print_exc()
                 await asyncio.sleep(60)
 
-    async def collect_tasks(self, http_client: aiohttp.ClientSession, proxy: str | None):
-        while True:
+    async def complete_tasks(self, http_client: aiohttp.ClientSession):
+        while settings.ENABLE_TASKS:
             try:
-                if not self.tg_web_data:
-                    self.tg_web_data = await self.get_tg_web_data(proxy=proxy)
-                if not self.tg_web_data:
-                    logger.error(f"{self.session_name} | Failed to get tg_web_data in collect_tasks")
-                    await asyncio.sleep(60)
-                    continue
-                login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
-                if not login_data:
-                    logger.error(f"{self.session_name} | Login failed during collect_tasks")
-                    await asyncio.sleep(60)
-                    continue
-                self.user_data = login_data.get('user', {})
-                tasks = login_data.get('tasks', [])
+                tasks = self.user_data.get('tasks', [])
                 if not tasks:
                     logger.info(f"{self.session_name} | No tasks available.")
                 else:
@@ -414,7 +385,7 @@ class Tapper:
                 logger.info(f"{self.session_name} | Finished attempting tasks. Will try again in 8 hours.")
                 await asyncio.sleep(8 * 3600)
             except Exception as error:
-                #logger.error(f"{self.session_name} | [Tasks Collection] Error: {error}")
+                logger.error(f"{self.session_name} | [Tasks Collection] Error: {error}")
                 import traceback
                 traceback.print_exc()
                 await asyncio.sleep(60)
@@ -423,14 +394,12 @@ class Tapper:
         try:
             http_client.headers['Referer'] = 'https://qlyuker.io/tasks'
             json_data = {"taskId": task_id}
-            #logger.debug(f"{self.session_name} | check_task REQUEST: URL=https://qlyuker.io/api/tasks/check, Headers={dict(http_client.headers)}, Payload={json_data}")
             response = await http_client.post(
                 url='https://qlyuker.io/api/tasks/check',
                 json=json_data
             )
             if response.status != 200:
                 response_text = await response.text()
-                #logger.error(f"{self.session_name} | check_task '{task_id}' FAILED: Status={response.status}, Response={response_text}")
                 response.raise_for_status()
             response_json = await response.json()
             return response_json
@@ -549,7 +518,6 @@ class Tapper:
     async def is_upgrade_available(self, upgrade_id: str) -> bool:
         upgrade = self.upgrades.get(upgrade_id)
         if not upgrade:
-            logger.warning(f"{self.session_name} | Upgrade '{upgrade_id}' not found.")
             return False
 
         if upgrade.get('maxLevel', False):
@@ -574,6 +542,94 @@ class Tapper:
             return True
         return True
 
+    async def upgrade_loop(self, http_client: aiohttp.ClientSession):
+        while settings.ENABLE_UPGRADES:
+            try:
+                sorted_upgrades = await self.prioritize_upgrades(self.user_data)
+                if sorted_upgrades:
+                    target_upgrade = sorted_upgrades[0]
+                    upgrade_id = target_upgrade['upgrade_id']
+                    price = target_upgrade['price']
+                    increment = target_upgrade['increment']
+                    efficiency = target_upgrade['efficiency']
+
+                    if price <= self.current_coins:
+                        logger.info(f"{self.session_name} | Attempting to purchase upgrade '{upgrade_id}' for {price} coins. Expected increment: {increment}.")
+                        upgrade_response = await self.buy_upgrade(http_client=http_client, upgrade_id=upgrade_id)
+                        if upgrade_response:
+                            self.current_coins = upgrade_response.get('currentCoins', self.current_coins)
+                            logger.info(f"{self.session_name} | Purchased upgrade '{upgrade_id}'. Current coins: {self.current_coins}")
+                            logger.info(f"{self.session_name} | Sleeping for {settings.SLEEP_AFTER_UPGRADE} seconds after purchase.")
+                            await asyncio.sleep(settings.SLEEP_AFTER_UPGRADE)
+                            continue
+                    else:
+                        coins_needed = price - self.current_coins
+                        if (self.mine_per_sec + self.energy_per_sec) > 0:
+                            time_needed_seconds = coins_needed / (self.mine_per_sec + self.energy_per_sec)
+                            time_needed_str = f"{int(time_needed_seconds // 3600)}h {int((time_needed_seconds % 3600) // 60)}m {int(time_needed_seconds % 60)}s"
+                        else:
+                            time_needed_str = "unknown (mine_per_sec + energy_per_sec = 0)"
+
+                        logger.info(
+                            f"{self.session_name} | Not enough coins to buy upgrade '{upgrade_id}'. "
+                            f"Need: {coins_needed} coins. Time to accumulate: {time_needed_str}."
+                        )
+                else:
+                    logger.info(f"{self.session_name} | No upgrades available for purchase at this time.")
+
+                await asyncio.sleep(settings.UPGRADE_CHECK_DELAY)
+            except Exception as error:
+                logger.error(f"{self.session_name} | [Upgrade Loop] Error: {error}")
+                import traceback
+                traceback.print_exc()
+                await asyncio.sleep(settings.RETRY_DELAY)
+
+    async def tap_loop(self, http_client: aiohttp.ClientSession):
+        while settings.ENABLE_TAPS:
+            try:
+                if self.current_energy <= self.max_energy * settings.ENERGY_THRESHOLD:
+                    logger.info(f"{self.session_name} | Energy ({self.current_energy}/{self.max_energy}) below threshold ({settings.ENERGY_THRESHOLD * 100}%).")
+                    if settings.ENABLE_UPGRADES and await self.is_upgrade_available('restoreEnergy'):
+                        logger.info(f"{self.session_name} | Attempting to purchase 'restoreEnergy' upgrade.")
+                        upgrade_response = await self.buy_upgrade(http_client=http_client, upgrade_id='restoreEnergy')
+                        if upgrade_response and upgrade_response.get('currentEnergy', 0) > self.current_energy:
+                            self.current_energy = upgrade_response['currentEnergy']
+                            self.restore_energy_usage_today += 1
+                            logger.info(f"{self.session_name} | Energy restored to {self.current_energy}.")
+                            logger.info(f"{self.session_name} | Sleeping for {settings.SLEEP_AFTER_UPGRADE} seconds after upgrade.")
+                            await asyncio.sleep(settings.SLEEP_AFTER_UPGRADE)
+                            continue
+                        else:
+                            logger.info(f"{self.session_name} | Unable to restore energy at this time.")
+                    else:
+                        logger.info(f"{self.session_name} | 'restoreEnergy' not available for purchase or upgrades disabled. Sleeping for {settings.SLEEP_ON_LOW_ENERGY} seconds.")
+                        await asyncio.sleep(settings.SLEEP_ON_LOW_ENERGY)
+                        continue
+
+                taps = min(self.current_energy, randint(settings.MIN_TAPS, settings.MAX_TAPS))
+                logger.info(f"{self.session_name} | Sending {taps} taps. Energy before tap: {self.current_energy}")
+                response = await self.send_taps(http_client=http_client, taps=taps, current_energy=self.current_energy)
+
+                if not response:
+                    logger.error(f"{self.session_name} | Failed to send taps")
+                    await asyncio.sleep(3)
+                    continue
+
+                self.current_energy = response.get('currentEnergy', self.current_energy)
+                self.current_coins = response.get('currentCoins', self.current_coins)
+
+                logger.info(f"{self.session_name} | Taps sent: {taps}. Current coins: {self.current_coins}, Energy: {self.current_energy}/{self.max_energy}")
+
+                sleep_duration = randint(settings.MIN_SLEEP_BETWEEN_TAPS, settings.MAX_SLEEP_BETWEEN_TAPS)
+                logger.info(f"{self.session_name} | Sleeping for {sleep_duration} seconds before next tap.")
+                await asyncio.sleep(sleep_duration)
+
+            except Exception as error:
+                logger.error(f"{self.session_name} | [Tap Loop] Error: {error}")
+                import traceback
+                traceback.print_exc()
+                await asyncio.sleep(60)
+
     async def run(self, proxy: str | None) -> None:
         proxy_conn = ProxyConnector.from_url(proxy) if proxy else None
 
@@ -583,110 +639,56 @@ class Tapper:
 
             logger.info(f"{self.session_name} | Starting main bot loop.")
 
-            daily_bonus_task = asyncio.create_task(self.collect_daily_reward(http_client=http_client, proxy=proxy))
-            tasks_collection_task = asyncio.create_task(self.collect_tasks(http_client=http_client, proxy=proxy))
+            self.tg_web_data = await self.get_tg_web_data(proxy=proxy)
+            if not self.tg_web_data:
+                logger.error(f"{self.session_name} | Failed to get tg_web_data in main loop")
+                await asyncio.sleep(60)
+            else:
+                login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
+                if not login_data:
+                    logger.error(f"{self.session_name} | Login failed")
+                    await asyncio.sleep(3)
+                else:
+                    self.user_data = login_data.get('user', {})
+                    self.current_energy = self.user_data.get("currentEnergy", self.current_energy)
+                    self.current_coins = self.user_data.get("currentCoins", self.current_coins)
+                    self.max_energy = self.user_data.get("maxEnergy", self.max_energy)
+                    logger.info(f"{self.session_name} | Logged in successfully. Current coins: {self.current_coins}, Energy: {self.current_energy}/{self.max_energy}")
+
+            tasks = []
+            if settings.ENABLE_CLAIM_REWARDS:
+                tasks.append(asyncio.create_task(self.collect_daily_reward(http_client=http_client)))
+            if settings.ENABLE_TASKS:
+                tasks.append(asyncio.create_task(self.complete_tasks(http_client=http_client)))
+            if settings.ENABLE_UPGRADES:
+                tasks.append(asyncio.create_task(self.upgrade_loop(http_client=http_client)))
+            if settings.ENABLE_TAPS:
+                tasks.append(asyncio.create_task(self.tap_loop(http_client=http_client)))
 
             while True:
                 try:
                     logger.info(f"{self.session_name} | Main loop iteration started.")
 
-                    if not self.tg_web_data:
-                        self.tg_web_data = await self.get_tg_web_data(proxy=proxy)
+                    self.tg_web_data = await self.get_tg_web_data(proxy=proxy)
                     if not self.tg_web_data:
                         logger.error(f"{self.session_name} | Failed to get tg_web_data in main loop")
                         await asyncio.sleep(60)
                         continue
 
                     login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
-
                     if not login_data:
                         logger.error(f"{self.session_name} | Login failed")
                         await asyncio.sleep(3)
                         continue
 
                     self.user_data = login_data.get('user', {})
-                    current_energy = self.current_energy
-                    current_coins = self.current_coins
-                    max_energy = self.max_energy
+                    self.current_energy = self.user_data.get("currentEnergy", self.current_energy)
+                    self.current_coins = self.user_data.get("currentCoins", self.current_coins)
+                    self.max_energy = self.user_data.get("maxEnergy", self.max_energy)
 
-                    logger.info(f"{self.session_name} | Logged in successfully. Current coins: {current_coins}, Energy: {current_energy}/{max_energy}")
+                    logger.info(f"{self.session_name} | Logged in successfully. Current coins: {self.current_coins}, Energy: {self.current_energy}/{self.max_energy}")
 
-                    user_data = {
-                        "friendsCount": self.friends_count
-                    }
-
-                    while True:
-                        if current_energy <= max_energy * settings.ENERGY_THRESHOLD:
-                            logger.info(f"{self.session_name} | Energy ({current_energy}/{max_energy}) below threshold ({settings.ENERGY_THRESHOLD * 100}%).")
-                            if await self.is_upgrade_available('restoreEnergy'):
-                                upgrade_response = await self.buy_upgrade(http_client=http_client, upgrade_id='restoreEnergy')
-                                if upgrade_response and upgrade_response.get('currentEnergy', 0) > current_energy:
-                                    current_energy = upgrade_response['currentEnergy']
-                                    self.restore_energy_usage_today += 1
-                                    logger.info(f"{self.session_name} | Energy restored to {current_energy}.")
-                                    logger.info(f"{self.session_name} | Sleeping for {settings.SLEEP_AFTER_UPGRADE} seconds after upgrade.")
-                                    await asyncio.sleep(settings.SLEEP_AFTER_UPGRADE)
-                                    continue
-                                else:
-                                    logger.info(f"{self.session_name} | Unable to restore energy at this time.")
-                            else:
-                                logger.info(f"{self.session_name} | 'restoreEnergy' not available for purchase. Sleeping for {settings.SLEEP_ON_LOW_ENERGY} seconds.")
-                                await asyncio.sleep(settings.SLEEP_ON_LOW_ENERGY)
-                                break
-
-                        sorted_upgrades = await self.prioritize_upgrades(user_data)
-                        if sorted_upgrades:
-                            target_upgrade = sorted_upgrades[0]
-                            upgrade_id = target_upgrade['upgrade_id']
-                            price = target_upgrade['price']
-                            increment = target_upgrade['increment']
-                            efficiency = target_upgrade['efficiency']
-
-                            if price <= current_coins:
-                                logger.info(f"{self.session_name} | Attempting to purchase upgrade '{upgrade_id}' for {price} coins. Expected increment: {increment}.")
-                                upgrade_response = await self.buy_upgrade(http_client=http_client, upgrade_id=upgrade_id)
-                                if upgrade_response:
-                                    current_coins = upgrade_response.get('currentCoins', current_coins)
-                                    logger.info(f"{self.session_name} | Purchased upgrade '{upgrade_id}'. Current coins: {current_coins}")
-                                    logger.info(f"{self.session_name} | Sleeping for {settings.SLEEP_AFTER_UPGRADE} seconds after purchase.")
-                                    await asyncio.sleep(settings.SLEEP_AFTER_UPGRADE)
-                                    continue
-                            else:
-                                coins_needed = price - current_coins
-                                if (self.mine_per_sec + self.energy_per_sec) > 0:
-                                    time_needed_seconds = coins_needed / (self.mine_per_sec + self.energy_per_sec)
-                                    time_needed_str = f"{int(time_needed_seconds // 3600)}h {int((time_needed_seconds % 3600) // 60)}m {int(time_needed_seconds % 60)}s"
-                                else:
-                                    time_needed_str = "unknown (mine_per_sec + energy_per_sec = 0)"
-
-                                logger.info(
-                                    f"{self.session_name} | Not enough coins to buy upgrade '{upgrade_id}'. "
-                                    f"Need: {coins_needed} coins. Time to accumulate: {time_needed_str}."
-                                )
-                        else:
-                            logger.info(f"{self.session_name} | No upgrades available for purchase at this time.")
-
-                        taps = min(current_energy, randint(settings.MIN_TAPS, settings.MAX_TAPS))
-                        logger.info(f"{self.session_name} | Sending {taps} taps. Energy before tap: {current_energy}")
-                        response = await self.send_taps(http_client=http_client, taps=taps, current_energy=current_energy)
-
-                        if not response:
-                            logger.error(f"{self.session_name} | Failed to send taps")
-                            await asyncio.sleep(3)
-                            break
-
-                        self.current_energy = response.get('currentEnergy', current_energy)
-                        self.current_coins = response.get('currentCoins', current_coins)
-                        current_energy = self.current_energy
-                        current_coins = self.current_coins
-
-                        logger.info(f"{self.session_name} | Taps sent: {taps}. Current coins: {current_coins}, Energy: {current_energy}/{max_energy}")
-
-                        sleep_duration = randint(settings.MIN_SLEEP_BETWEEN_TAPS, settings.MAX_SLEEP_BETWEEN_TAPS)
-                        logger.info(f"{self.session_name} | Sleeping for {sleep_duration} seconds before next action.")
-                        await asyncio.sleep(sleep_duration)
-
-                    self.tg_web_data = None
+                    await asyncio.sleep(60)
 
                 except InvalidSession as error:
                     logger.error(f"{self.session_name} | Invalid session: {error}")
