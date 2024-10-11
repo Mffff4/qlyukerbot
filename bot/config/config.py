@@ -13,13 +13,18 @@ class Settings(BaseSettings):
     TAPS: list = [10, 100] 
     SLEEP_BETWEEN_TAPS: list = [1, 3] 
     ENERGY_THRESHOLD: float = 0.05
-    SLEEP_ON_LOW_ENERGY: int = 60 * 1
+    SLEEP_ON_LOW_ENERGY: int = 60 * 15
     SLEEP_AFTER_UPGRADE: int = 1
     DELAY_BETWEEN_TASKS: list = [3, 15]
 
-    UPGRADE_CHECK_DELAY: int = 5
+    UPGRADE_CHECK_DELAY: int = 60
     RETRY_DELAY: int = 3
     MAX_RETRIES: int = 5
+
+    ENABLE_TAPS: bool = True
+    ENABLE_CLAIM_REWARDS: bool = True
+    ENABLE_UPGRADES: bool = True
+    ENABLE_TASKS: bool = True
 
     @property
     def MIN_TAPS(self):
