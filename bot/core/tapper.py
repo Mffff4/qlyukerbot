@@ -256,13 +256,12 @@ class Tapper:
             )
             if response.status != 200:
                 response_text = await response.text()
-                logger.error(f"{self.session_name} | buy_upgrade '{upgrade_id}' FAILED: Status={response.status}, Response={response_text}")
                 if 'Слишком рано для улучшения' in response_text:
                     current_level = self.upgrades[upgrade_id].get('level', 0)
                     delay_seconds = self.upgrade_delay.get(str(current_level), 0)
                     next_available_time = datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(seconds=delay_seconds)
                     self.last_restore_energy_purchase_time[upgrade_id] = next_available_time
-                    logger.info(f"{self.session_name} | Кулдаун на '{upgrade_id}' установлен на {delay_seconds} секунд.")
+                    logger.info(f"{self.session_name} | Cooldown for '{upgrade_id}' set to {delay_seconds} seconds.")
                 response.raise_for_status()
             response_json = await response.json()
             await self.update_upgrade_after_purchase(response_json)
@@ -274,7 +273,7 @@ class Tapper:
                 response_text = await error.response.text()
             except Exception:
                 response_text = "No response body"
-            logger.error(f"{self.session_name} | ClientResponseError during buy_upgrade '{upgrade_id}': Status={error.status}, Message={error.message}, Response={response_text}")
+            #logger.error(f"{self.session_name} | ClientResponseError during buy_upgrade '{upgrade_id}': Status={error.status}, Message={error.message}, Response={response_text}")
             await asyncio.sleep(3)
             return {}
         except Exception as error:
