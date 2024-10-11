@@ -86,27 +86,26 @@
 
 ## ⚙️ Settings
 
-Example `.env` file configuration:
+| Setting               | Default Value            | Description                                                                                                                                 |
+|-----------------------|--------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| **API_ID**            |                          | Unique application ID required for connecting to the Telegram API.                                                                          |
+| **API_HASH**          |                          | Application hash used for authentication and security when connecting to the API.                                                            |
+| **USE_PROXY_FROM_FILE**| False                    | Flag indicating whether to use proxy from bot/config/proxies.txt file.                                                                       |
+| **REF_ID**            | "bro-228618799"          | Referral argument used in links to track referrals.                                                                                          |
+| **TAPS**              | [10, 100]                | List of values determining the number of taps per cycle.                                                                                     |
+| **SLEEP_BETWEEN_TAPS** | [1, 3]                   | List of values determining the delay between taps.                                                                                           |
+| **ENERGY_THRESHOLD**   | 0.05                     | Energy threshold at which actions start.                                                                                                     |
+| **SLEEP_ON_LOW_ENERGY**| 900                      | Waiting time at low energy level. Value in seconds.                                                                                          |
+| **SLEEP_AFTER_UPGRADE**| 1                        | Delay time after an upgrade. Value in seconds.                                                                                               |
+| **DELAY_BETWEEN_TASKS**| [3, 15]                  | List of values determining the delay between tasks.                                                                                          |
+| **UPGRADE_CHECK_DELAY**| 60                       | Delay between upgrade checks. Value in seconds.                                                                                              |
+| **RETRY_DELAY**        | 3                        | Waiting time before retrying after an error. Value in seconds.                                                                                |
+| **MAX_RETRIES**        | 5                        | Maximum number of attempts to complete a task in case of failure.                                                                             |
+| **ENABLE_TAPS**        | True                     | Flag to enable/disable the tap function.                                                                                                     |
+| **ENABLE_CLAIM_REWARDS**| True                    | Flag to enable/disable reward claiming.                                                                                                      |
+| **ENABLE_UPGRADES**    | True                     | Flag to enable/disable upgrades.                                                                                                             |
+| **ENABLE_TASKS**       | True                     | Flag to enable/disable task execution.                                                                                                       |
 
-```plaintext
-API_ID = "Your unique ID"
-API_HASH = "Your hash"
-USE_PROXY_FROM_FILE = True
-REF_ID = "bro-228618799"
-TAPS = [10, 100]
-SLEEP_BETWEEN_TAPS = [1, 3]
-ENERGY_THRESHOLD = 0.05
-SLEEP_ON_LOW_ENERGY = 60
-SLEEP_AFTER_UPGRADE = 1
-DELAY_BETWEEN_TASKS = [3, 15]
-UPGRADE_CHECK_DELAY = 5
-RETRY_DELAY = 3
-MAX_RETRIES = 5
-ENABLE_TAPS=True
-ENABLE_CLAIM_REWARDS=True
-ENABLE_UPGRADES=True
-ENABLE_TASKS=True
-```
 
 ---
 
