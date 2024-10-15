@@ -12,7 +12,8 @@ from better_proxy import Proxy
 from bot.config import settings
 from bot.utils import logger
 from bot.utils.web import run_web_and_tunnel, stop_web_and_tunnel
-from bot.core.tapper import run_tappers  
+from bot.core.tapper import run_tappers
+from bot.core.registrator import register_sessions  
 
 start_text = """
  ██████╗ ██╗  ██╗   ██╗██╗   ██╗██╗  ██╗███████╗██████╗ ██████╗  ██████╗ ████████╗
@@ -108,11 +109,27 @@ async def process() -> None:
     elif action == 3:
         tg_clients = await get_tg_clients()
         if not tg_clients:
+            print("No sessions found. You can create sessions using the following methods:")
+            print("1. By phone number: python main.py -a 1")
+            print("2. By QR code: python main.py -a 2")
+            print("3. Upload via web interface: python main.py -a 5")
+            print("\nIf you're using Docker, use these commands:")
+            print("1. By phone number: docker-compose run bot python3 main.py -a 1")
+            print("2. By QR code: docker-compose run bot python3 main.py -a 2")
+            print("3. Upload via web interface: docker-compose run bot python3 main.py -a 5")
             return
         await run_tasks(tg_clients=tg_clients)
     elif action == 4:
         tg_clients = await get_tg_clients()
         if not tg_clients:
+            print("No sessions found. You can create sessions using the following methods:")
+            print("1. By phone number: python main.py -a 1")
+            print("2. By QR code: python main.py -a 2")
+            print("3. Upload via web interface: python main.py -a 5")
+            print("\nIf you're using Docker, use these commands:")
+            print("1. By phone number: docker-compose run bot python3 main.py -a 1")
+            print("2. By QR code: docker-compose run bot python3 main.py -a 2")
+            print("3. Upload via web interface: docker-compose run bot python3 main.py -a 5")
             return
         logger.info("Send /help command in Saved Messages\n")
         await compose(tg_clients)
