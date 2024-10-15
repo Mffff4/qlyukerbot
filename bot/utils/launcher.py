@@ -114,9 +114,9 @@ async def process() -> None:
             print("2. By QR code: python main.py -a 2")
             print("3. Upload via web interface: python main.py -a 5")
             print("\nIf you're using Docker, use these commands:")
-            print("1. By phone number: docker-compose run bot python3 main.py -a 1")
-            print("2. By QR code: docker-compose run bot python3 main.py -a 2")
-            print("3. Upload via web interface: docker-compose run bot python3 main.py -a 5")
+            print("1. By phone number: docker compose run bot python3 main.py -a 1")
+            print("2. By QR code: docker compose run bot python3 main.py -a 2")
+            print("3. Upload via web interface: docker compose run bot python3 main.py -a 5")
             return
         await run_tasks(tg_clients=tg_clients)
     elif action == 4:
@@ -127,9 +127,9 @@ async def process() -> None:
             print("2. By QR code: python main.py -a 2")
             print("3. Upload via web interface: python main.py -a 5")
             print("\nIf you're using Docker, use these commands:")
-            print("1. By phone number: docker-compose run bot python3 main.py -a 1")
-            print("2. By QR code: docker-compose run bot python3 main.py -a 2")
-            print("3. Upload via web interface: docker-compose run bot python3 main.py -a 5")
+            print("1. By phone number: docker compose run bot python3 main.py -a 1")
+            print("2. By QR code: docker compose run bot python3 main.py -a 2")
+            print("3. Upload via web interface: docker compose run bot python3 main.py -a 5")
             return
         logger.info("Send /help command in Saved Messages\n")
         await compose(tg_clients)
