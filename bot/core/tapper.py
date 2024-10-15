@@ -680,16 +680,6 @@ class Tapper:
 
             logger.info(f"{self.session_name} | Starting main bot loop.")
 
-            tasks = []
-            if settings.ENABLE_CLAIM_REWARDS:
-                tasks.append(asyncio.create_task(self.collect_daily_reward(http_client=http_client)))
-            if settings.ENABLE_TASKS:
-                tasks.append(asyncio.create_task(self.complete_tasks(http_client=http_client)))
-            if settings.ENABLE_UPGRADES:
-                tasks.append(asyncio.create_task(self.upgrade_loop(http_client=http_client)))
-            if settings.ENABLE_TAPS:
-                tasks.append(asyncio.create_task(self.tap_loop(http_client=http_client)))
-
             while True:
                 try:
                     logger.info(f"{self.session_name} | Main loop iteration started.")
@@ -713,12 +703,18 @@ class Tapper:
 
                     logger.info(f"{self.session_name} | Logged in successfully. Current coins: {self.current_coins}, Energy: {self.current_energy}/{self.max_energy}")
 
-                    if self.current_energy == 0:
-                        logger.warning(f"{self.session_name} | Bot is sleeping due to zero energy.")
-                        await asyncio.sleep(60)
-                        continue
+                    tasks = []
+                    if settings.ENABLE_CLAIM_REWARDS:
+                        tasks.append(asyncio.create_task(self.collect_daily_reward(http_client=http_client)))
+                    if settings.ENABLE_TASKS:
+                        tasks.append(asyncio.create_task(self.complete_tasks(http_client=http_client)))
+                    if settings.ENABLE_UPGRADES:
+                        tasks.append(asyncio.create_task(self.upgrade_loop(http_client=http_client)))
+                    if settings.ENABLE_TAPS:
+                        tasks.append(asyncio.create_task(self.tap_loop(http_client=http_client)))
 
-                    await asyncio.sleep(60)
+                    # Ждем выполнения всех задач
+                    await asyncio.gather(*tasks)
 
                 except InvalidSession as error:
                     logger.error(f"{self.session_name} | Invalid session: {error}")
