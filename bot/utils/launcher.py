@@ -4,24 +4,23 @@ import asyncio
 import argparse
 from itertools import cycle
 import subprocess
+import signal
 
 from pyrogram import Client, compose
 from better_proxy import Proxy
 
 from bot.config import settings
 from bot.utils import logger
-from bot.core.tapper import run_tapper
-from bot.core.registrator import register_sessions
+from bot.utils.web import run_web_and_tunnel, stop_web_and_tunnel
+from bot.core.tapper import run_tappers  
 
 start_text = """
-
  ██████╗ ██╗  ██╗   ██╗██╗   ██╗██╗  ██╗███████╗██████╗ ██████╗  ██████╗ ████████╗
 ██╔═══██╗██║  ╚██╗ ██╔╝██║   ██║██║ ██╔╝██╔════╝██╔══██╗██╔══██╗██╔═══██╗╚══██╔══╝
 ██║   ██║██║   ╚████╔╝ ██║   ██║█████╔╝ █████╗  ██████╔╝██████╔╝██║   ██║   ██║   
 ██║▄▄ ██║██║    ╚██╔╝  ██║   ██║██╔═██╗ ██╔══╝  ██╔══██╗██╔══██╗██║   ██║   ██║   
 ╚██████╔╝███████╗██║   ╚██████╔╝██║  ██╗███████╗██║  ██║██████╔╝╚██████╔╝   ██║   
- ╚══▀▀═╝ ╚══════╝╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═════╝  ╚═════╝    ╚═╝   
-                                                                                  
+ ╚══▀▀═╝ ╚═════╝╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═════╝  ╚═════╝    ╚═╝   
 
 Select an action:
 
@@ -29,9 +28,12 @@ Select an action:
     2. Create session via QR
     3. Run clicker
     4. Run via Telegram (Beta)
+    5. Upload sessions via web
 """
 
 global tg_clients
+
+shutdown_event = asyncio.Event()
 
 def get_session_names() -> list[str]:
     session_names = glob.glob("sessions/*.session")
@@ -90,8 +92,8 @@ async def process() -> None:
 
             if not action.isdigit():
                 logger.warning("Action must be a number")
-            elif action not in ["1", "2", "3", "4"]:
-                logger.warning("Action must be 1, 2, 3, or 4")
+            elif action not in ["1", "2", "3", "4", "5"]:
+                logger.warning("Action must be 1, 2, 3, 4, or 5")
             else:
                 action = int(action)
                 break
@@ -114,17 +116,32 @@ async def process() -> None:
             return
         logger.info("Send /help command in Saved Messages\n")
         await compose(tg_clients)
+    elif action == 5:
+        logger.info("Starting web interface for uploading sessions...")
+        
+        signal.signal(signal.SIGINT, signal_handler)
+        
+        try:
+            web_task = asyncio.create_task(run_web_and_tunnel())
+            await shutdown_event.wait()
+        finally:
+            web_task.cancel()
+            await stop_web_and_tunnel()
+            print("Program terminated.")
 
 async def run_tasks(tg_clients: list[Client]):
     proxies = get_proxies()
     proxies_cycle = cycle(proxies) if proxies else None
-    tasks = [
-        asyncio.create_task(
-            run_tapper(
-                tg_client=tg_client,
-                proxy=next(proxies_cycle) if proxies_cycle else None,
-            )
-        )
-        for tg_client in tg_clients
-    ]
-    await asyncio.gather(*tasks)
+    proxies_list = [next(proxies_cycle) if proxies_cycle else None for _ in tg_clients]
+    
+    await run_tappers(tg_clients, proxies_list)
+
+def signal_handler(signum, frame):
+    print("\nShutting down...")
+    shutdown_event.set()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(process())
+    except KeyboardInterrupt:
+        pass
