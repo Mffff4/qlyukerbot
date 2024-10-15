@@ -29,7 +29,7 @@ Select an action:
     2. Create session via QR
     3. Run clicker
     4. Run via Telegram (Beta)
-    5. Upload sessions via web
+    5. Upload sessions via web (BETA)
 """
 
 global tg_clients
@@ -112,11 +112,11 @@ async def process() -> None:
             print("No sessions found. You can create sessions using the following methods:")
             print("1. By phone number: python main.py -a 1")
             print("2. By QR code: python main.py -a 2")
-            print("3. Upload via web interface: python main.py -a 5")
+            print("3. Upload via web interface (BETA): python main.py -a 5")
             print("\nIf you're using Docker, use these commands:")
             print("1. By phone number: docker compose run bot python3 main.py -a 1")
             print("2. By QR code: docker compose run bot python3 main.py -a 2")
-            print("3. Upload via web interface: docker compose run bot python3 main.py -a 5")
+            print("3. Upload via web interface (BETA): docker compose run bot python3 main.py -a 5")
             return
         await run_tasks(tg_clients=tg_clients)
     elif action == 4:
@@ -125,11 +125,11 @@ async def process() -> None:
             print("No sessions found. You can create sessions using the following methods:")
             print("1. By phone number: python main.py -a 1")
             print("2. By QR code: python main.py -a 2")
-            print("3. Upload via web interface: python main.py -a 5")
+            print("3. Upload via web interface (BETA): python main.py -a 5")
             print("\nIf you're using Docker, use these commands:")
             print("1. By phone number: docker compose run bot python3 main.py -a 1")
             print("2. By QR code: docker compose run bot python3 main.py -a 2")
-            print("3. Upload via web interface: docker compose run bot python3 main.py -a 5")
+            print("3. Upload via web interface (BETA): docker compose run bot python3 main.py -a 5")
             return
         logger.info("Send /help command in Saved Messages\n")
         await compose(tg_clients)
