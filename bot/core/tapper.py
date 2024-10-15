@@ -12,11 +12,34 @@ from pyrogram import Client
 from pyrogram.errors import Unauthorized, UserDeactivated, AuthKeyUnregistered
 from pyrogram.raw.functions.messages import RequestAppWebView
 from pyrogram.raw import types
+from rich.console import Console
+from rich.panel import Panel
+from rich.layout import Layout
+from rich.table import Table
+from rich.text import Text
+from rich.live import Live
+from rich.logging import RichHandler
+from rich.emoji import Emoji
+import logging
 
 from bot.config import settings
-from bot.utils import logger
+from bot.utils.logger import logger, get_log_panel
 from bot.exceptions import InvalidSession
 from bot.core.headers import headers
+
+console = Console()
+
+logging.getLogger("pyrogram").setLevel(logging.WARNING)
+logging.getLogger("pyrogram.session.auth").setLevel(logging.WARNING)
+logging.getLogger("pyrogram.session.session").setLevel(logging.WARNING)
+
+def format_number(num):
+    if num >= 1_000_000:
+        return f"{num/1_000_000:.1f}M"
+    elif num >= 1_000:
+        return f"{num/1_000:.1f}K"
+    else:
+        return str(num)
 
 class Tapper:
     def __init__(self, tg_client: Client):
@@ -273,7 +296,6 @@ class Tapper:
                 response_text = await error.response.text()
             except Exception:
                 response_text = "No response body"
-            #logger.error(f"{self.session_name} | ClientResponseError during buy_upgrade '{upgrade_id}': Status={error.status}, Message={error.message}, Response={response_text}")
             await asyncio.sleep(3)
             return {}
         except Exception as error:
@@ -580,7 +602,7 @@ class Tapper:
             except Exception as error:
                 logger.error(f"{self.session_name} | [Upgrade Loop] Error: {error}")
                 import traceback
-                traceback.print_exc()
+                logger.error(traceback.format_exc())
                 await asyncio.sleep(settings.RETRY_DELAY)
 
     async def tap_loop(self, http_client: aiohttp.ClientSession):
@@ -626,8 +648,28 @@ class Tapper:
             except Exception as error:
                 logger.error(f"{self.session_name} | [Tap Loop] Error: {error}")
                 import traceback
-                traceback.print_exc()
+                logger.error(traceback.format_exc())
                 await asyncio.sleep(60)
+
+    async def get_status_panel(self):
+        stats_table = Table(show_header=False, box=None)
+        stats_table.add_row("Coins", f"{self.current_coins:,}")
+        stats_table.add_row("Energy", f"{self.current_energy}/{self.max_energy}")
+        stats_table.add_row("Mine per sec", f"{self.mine_per_sec:.2f}")
+        stats_table.add_row("Energy per sec", f"{self.energy_per_sec:.2f}")
+
+        activity_log = Text()
+        activity_log.append(f"Last login: {datetime.now().strftime('%H:%M:%S')}\n")
+        activity_log.append(f"Status: Active\n")
+        activity_log.append(f"Friends: {self.friends_count}\n")
+
+        panel = Panel(
+            Columns([stats_table, activity_log]),
+            title=f"[bold]{self.session_name}[/bold]",
+            border_style="green",
+            expand=False
+        )
+        return panel
 
     async def run(self, proxy: str | None) -> None:
         proxy_conn = ProxyConnector.from_url(proxy) if proxy else None
@@ -637,22 +679,6 @@ class Tapper:
                 await self.check_proxy(http_client=http_client, proxy=proxy)
 
             logger.info(f"{self.session_name} | Starting main bot loop.")
-
-            self.tg_web_data = await self.get_tg_web_data(proxy=proxy)
-            if not self.tg_web_data:
-                logger.error(f"{self.session_name} | Failed to get tg_web_data in main loop")
-                await asyncio.sleep(60)
-            else:
-                login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
-                if not login_data:
-                    logger.error(f"{self.session_name} | Login failed")
-                    await asyncio.sleep(3)
-                else:
-                    self.user_data = login_data.get('user', {})
-                    self.current_energy = self.user_data.get("currentEnergy", self.current_energy)
-                    self.current_coins = self.user_data.get("currentCoins", self.current_coins)
-                    self.max_energy = self.user_data.get("maxEnergy", self.max_energy)
-                    logger.info(f"{self.session_name} | Logged in successfully. Current coins: {self.current_coins}, Energy: {self.current_energy}/{self.max_energy}")
 
             tasks = []
             if settings.ENABLE_CLAIM_REWARDS:
@@ -687,20 +713,84 @@ class Tapper:
 
                     logger.info(f"{self.session_name} | Logged in successfully. Current coins: {self.current_coins}, Energy: {self.current_energy}/{self.max_energy}")
 
+                    if self.current_energy == 0:
+                        logger.warning(f"{self.session_name} | Bot is sleeping due to zero energy.")
+                        await asyncio.sleep(60)
+                        continue
+
                     await asyncio.sleep(60)
 
                 except InvalidSession as error:
                     logger.error(f"{self.session_name} | Invalid session: {error}")
+                    self.current_energy = -1
                     raise error
 
                 except Exception as error:
                     logger.error(f"{self.session_name} | Unknown error: {error}")
                     import traceback
-                    traceback.print_exc()
+                    logger.error(traceback.format_exc())
                     await asyncio.sleep(3)
 
+async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
+    tappers = [Tapper(tg_client) for tg_client in tg_clients]
+    
+    layout = Layout()
+    layout.split_row(
+        Layout(name="left", ratio=1),
+        Layout(name="right", ratio=1)
+    )
+
+    async def update_left_panel():
+        table = Table(show_header=True, header_style="bold cyan", box=None)
+        table.add_column("Session", style="cyan")
+        table.add_column("Coins", justify="right", style="green")
+        table.add_column("Energy", justify="right", style="yellow")
+        table.add_column("Mine/h", justify="right", style="magenta")
+        table.add_column("Status", justify="center", style="red")
+
+        for tapper in tappers:
+            if tapper.current_energy > 0:
+                status_emoji = Emoji("green_circle")
+                status_color = "green"
+            elif tapper.current_energy == 0:
+                status_emoji = Emoji("sleeping_face")
+                status_color = "yellow"
+            elif tapper.current_energy == -1: 
+                status_emoji = Emoji("cross_mark")
+                status_color = "red"
+            else:
+                status_emoji = Emoji("red_circle")
+                status_color = "red"
+            
+            table.add_row(
+                tapper.session_name,
+                format_number(tapper.current_coins),
+                f"{max(tapper.current_energy, 0)}/{tapper.max_energy}",
+                format_number(tapper.mine_per_sec * 3600),
+                f"[{status_color}]{status_emoji}[/]"
+            )
+
+        return Panel(table, title="Sessions Overview", border_style="green")
+
+    async def update_layout():
+        while True:
+            layout["left"].update(await update_left_panel())
+            layout["right"].update(get_log_panel())
+            await asyncio.sleep(1)
+
+    with Live(layout, console=console, refresh_per_second=1, screen=True):
+        update_task = asyncio.create_task(update_layout())
+        
+        try:
+            await asyncio.gather(*[tapper.run(proxy) for tapper, proxy in zip(tappers, proxies)])
+        except asyncio.CancelledError:
+            pass
+        finally:
+            update_task.cancel()
+            try:
+                await update_task
+            except asyncio.CancelledError:
+                pass
+
 async def run_tapper(tg_client: Client, proxy: str | None):
-    try:
-        await Tapper(tg_client=tg_client).run(proxy=proxy)
-    except InvalidSession:
-        logger.error(f"{tg_client.name} | Invalid Session")
+    await run_tappers([tg_client], [proxy])
