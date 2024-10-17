@@ -11,7 +11,6 @@ install_dependencies() {
     if command -v apt-get &> /dev/null; then
         export DEBIAN_FRONTEND=noninteractive
         sudo ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime
-        
         sudo apt-get update
         sudo apt-get install -y tzdata
         sudo dpkg-reconfigure --frontend noninteractive tzdata
@@ -32,7 +31,6 @@ install_dependencies() {
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR" || error "Failed to change directory to script location."
 
-# Проверяем, существует ли виртуальное окружение и все ли настроено
 if [ -d "venv" ] && [ -f "venv/bin/python3" ] && [ -f "venv/installed" ] && [ -f ".env" ]; then
     echo "Environment is already set up. Activating and running the bot..."
     source venv/bin/activate
@@ -40,10 +38,8 @@ if [ -d "venv" ] && [ -f "venv/bin/python3" ] && [ -f "venv/installed" ] && [ -f
     exit 0
 fi
 
-# Если что-то не настроено, продолжаем полную настройку
 echo "Full setup required. Starting installation process..."
 
-# Проверяем наличие Python 3.10 и устанавливаем его, если необходимо
 if ! command -v python3.10 &> /dev/null; then
     echo "Python 3.10 not found. Installing dependencies..."
     install_dependencies
@@ -54,7 +50,6 @@ if [ -z "$PYTHON_CMD" ]; then
     error "Python 3.10 is not installed or not in PATH. Please install Python 3.10."
 fi
 
-# Проверка версии Python
 python_version=$("$PYTHON_CMD" -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
 if [[ "$python_version" != "3.10" ]]; then
     error "Python 3.10 is required. Current version: $python_version. Please install Python 3.10."
@@ -63,7 +58,6 @@ fi
 echo "Current directory: $(pwd)"
 echo "Python command: $PYTHON_CMD"
 
-# Удаляем существующее виртуальное окружение, если оно есть
 if [ -d "venv" ]; then
     echo "Removing existing virtual environment..."
     rm -rf venv
