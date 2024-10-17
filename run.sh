@@ -11,13 +11,27 @@ install_dependencies() {
     if command -v apt-get &> /dev/null; then
         export DEBIAN_FRONTEND=noninteractive
         sudo ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime
+        
+        # Добавление ключа GPG для репозитория Docker
+        sudo apt-get update
+        sudo apt-get install -y ca-certificates curl gnupg
+        sudo install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        sudo chmod a+r /etc/apt/keyrings/docker.gpg
+        
+        # Добавление репозитория Docker
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+          $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+          sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        
         sudo apt-get update
         sudo apt-get install -y tzdata
         sudo dpkg-reconfigure --frontend noninteractive tzdata
         sudo apt-get install -y software-properties-common
         sudo add-apt-repository -y ppa:deadsnakes/ppa
         sudo apt-get update
-        sudo apt-get install -y python3.10 python3.10-venv python3.10-dev python3-pip python3.10-distutils python3.10-lib2to3 git
+        sudo apt-get install -y python3.10 python3.10-venv python3.10-dev python3-pip git
     elif command -v yum &> /dev/null; then
         sudo yum install -y https://repo.ius.io/ius-release-el7.rpm
         sudo yum install -y python310 python310-devel python310-pip git
@@ -42,8 +56,11 @@ fi
 # Если что-то не настроено, продолжаем полную настройку
 echo "Full setup required. Starting installation process..."
 
-# Устанавливаем зависимости
-install_dependencies
+# Проверяем наличие Python 3.10 и устанавливаем его, если необходимо
+if ! command -v python3.10 &> /dev/null; then
+    echo "Python 3.10 not found. Installing dependencies..."
+    install_dependencies
+fi
 
 PYTHON_CMD=$(command -v python3.10)
 if [ -z "$PYTHON_CMD" ]; then
