@@ -11,12 +11,12 @@ install_dependencies() {
     if command -v apt-get &> /dev/null; then
         export DEBIAN_FRONTEND=noninteractive
         sudo ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime
-        sudo apt-get update
+        sudo apt-get update || true
         sudo apt-get install -y tzdata
         sudo dpkg-reconfigure --frontend noninteractive tzdata
         sudo apt-get install -y software-properties-common
         sudo add-apt-repository -y ppa:deadsnakes/ppa
-        sudo apt-get update
+        sudo apt-get update || true
         sudo apt-get install -y python3.10 python3.10-venv python3.10-dev python3-pip git
     elif command -v yum &> /dev/null; then
         sudo yum install -y https://repo.ius.io/ius-release-el7.rpm
