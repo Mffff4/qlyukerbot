@@ -1,15 +1,18 @@
 FROM python:3.10.11-alpine3.18
 
-WORKDIR /app
-
-# Устанавливаем необходимые пакеты для компиляции и сборки
 RUN apk add --no-cache gcc musl-dev libffi-dev python3-dev openssl-dev
 
-COPY requirements.txt requirements.txt
+WORKDIR /app
 
-RUN pip3 install --upgrade pip setuptools wheel
-RUN pip3 install --no-warn-script-location --no-cache-dir -r requirements.txt
-
+COPY requirements.txt .
+COPY .env .
 COPY . .
 
-CMD ["python3", "main.py", "-a", "2"]
+RUN pip install --no-cache-dir -r requirements.txt
+
+RUN mkdir -p sessions
+
+ENV PYTHONIOENCODING=utf-8
+ENV TERM=xterm-256color
+
+CMD ["python", "main.py", "-a", "3"]

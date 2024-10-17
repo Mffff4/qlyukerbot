@@ -327,12 +327,12 @@ async def run_web_and_tunnel():
     
     os.environ["FLASK_APP"] = "bot/utils/web.py"
     flask_process = subprocess.Popen(
-        ["flask", "run", "--port", "5000"],
+        ["flask", "run", "--host", "0.0.0.0", "--port", "7777"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
     )
     tunnel_process = subprocess.Popen(
-        ["ssh", "-o", "StrictHostKeyChecking=no", "-R", "80:localhost:5000", "serveo.net"],
+        ["ssh", "-o", "StrictHostKeyChecking=no", "-R", "80:localhost:7777", "serveo.net"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
     )
@@ -360,4 +360,4 @@ if __name__ == '__main__':
     print(f"UPLOAD_FOLDER path: {UPLOAD_FOLDER}")
     print(f"UPLOAD_FOLDER absolute path: {os.path.abspath(UPLOAD_FOLDER)}")
     print(f"Current working directory: {os.getcwd()}")
-    asyncio.run(run_web_and_tunnel())
+    app.run(host='0.0.0.0', port=7777)

@@ -1,10 +1,25 @@
 services:
   bot:
-    container_name: 'QlyukerBot'
-    build:
-      context: .
-    stop_signal: SIGINT
-    restart: unless-stopped
-    command: "python3 main.py -a 3"
+    build: .
+    container_name: qlyuker_bot
     volumes:
-      - .:/app
+      - ./sessions:/app/sessions
+      - ./.env:/app/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TERM=xterm-256color
+    ports:
+      - "7777:7777"
+    tty: true
+    stdin_open: true
+    restart: unless-stopped
+    deploy:
+      restart_policy:
+        condition: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+    labels:
+      - "com.docker.compose.container-number=1"

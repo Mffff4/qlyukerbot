@@ -20,6 +20,7 @@ from rich.text import Text
 from rich.live import Live
 from rich.logging import RichHandler
 from rich.emoji import Emoji
+from rich.columns import Columns
 import logging
 
 from bot.config import settings
@@ -731,10 +732,6 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
     tappers = [Tapper(tg_client) for tg_client in tg_clients]
     
     layout = Layout()
-    layout.split_row(
-        Layout(name="left", ratio=1),
-        Layout(name="right", ratio=1)
-    )
 
     async def update_left_panel():
         table = Table(show_header=True, header_style="bold cyan", box=None)
@@ -770,8 +767,22 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
 
     async def update_layout():
         while True:
-            layout["left"].update(await update_left_panel())
-            layout["right"].update(get_log_panel())
+            console_width = console.width
+            if console_width < 120:
+                layout.split_column(
+                    Layout(name="upper", ratio=1),
+                    Layout(name="lower", ratio=1)
+                )
+                layout["upper"].update(await update_left_panel())
+                layout["lower"].update(get_log_panel())
+            else:
+                layout.split_row(
+                    Layout(name="left", ratio=1),
+                    Layout(name="right", ratio=1)
+                )
+                layout["left"].update(await update_left_panel())
+                layout["right"].update(get_log_panel())
+            
             await asyncio.sleep(1)
 
     with Live(layout, console=console, refresh_per_second=1, screen=True):
