@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     ENABLE_UPGRADES: bool = True
     ENABLE_TASKS: bool = True
 
+    ENABLE_RAFFLE: bool = True
+    RAFFLE_BUY_INTERVAL: int = 600
+    RAFFLE_SESSIONS: list[str] = []
+
     @property
     def MIN_TAPS(self):
         return self.TAPS[0]

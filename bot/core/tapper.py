@@ -24,7 +24,7 @@ from rich.columns import Columns
 import logging
 
 from bot.config import settings
-from bot.utils.logger import logger, get_log_panel
+from bot.utils.logger import logger, get_log_panel, add_log, wait_for_log_update
 from bot.exceptions import InvalidSession
 from bot.core.headers import headers
 
@@ -72,6 +72,10 @@ class Tapper:
         self.onboarding = 0
         self.upgrade_delay = {}
         self.friends_count = 0
+        self.raffle_id = None
+        self.raffle_tickets = 0
+        self.raffle_total_tickets = 0
+        self.raffle_prizes_count = 0
 
     async def get_tg_web_data(self, proxy: str | None) -> str:
         async with self.client_lock:
@@ -134,7 +138,7 @@ class Tapper:
                 raise error
 
             except Exception as error:
-                logger.error(f"{self.session_name} | Unknown error during Authorization: {error}")
+                add_log(f"{self.session_name} | Unknown error during Authorization: {error}")
                 await asyncio.sleep(3)
                 return None
 
@@ -148,12 +152,12 @@ class Tapper:
             )
             if response.status != 200:
                 response_text = await response.text()
-                logger.error(f"{self.session_name} | login FAILED: Status={response.status}, Response={response_text}")
+                add_log(f"{self.session_name} | login FAILED: Status={response.status}, Response={response_text}")
                 response.raise_for_status()
             response_json = await response.json()
             http_client.headers['Onboarding'] = '2'
             await self.process_auth_data(response_json)
-            logger.info(f"{self.session_name} | Successfully logged in.")
+            add_log(f"{self.session_name} | Successfully logged in.")
             for cookie in http_client.cookie_jar:
                 pass
             return response_json
@@ -163,11 +167,11 @@ class Tapper:
                 response_text = await error.response.text()
             except Exception:
                 response_text = "No response body"
-            logger.error(f"{self.session_name} | ClientResponseError during login: Status={error.status}, Message={error.message}, Response={response_text}")
+            add_log(f"{self.session_name} | ClientResponseError during login: Status={error.status}, Message={error.message}, Response={response_text}")
             await asyncio.sleep(3)
             return {}
         except Exception as error:
-            logger.error(f"{self.session_name} | Unexpected error during login: {error}")
+            add_log(f"{self.session_name} | Unexpected error during login: {error}")
             await asyncio.sleep(3)
             return {}
 
@@ -219,6 +223,17 @@ class Tapper:
             if not (upgrade_id.startswith('restoreEnergy') or upgrade_id.startswith('promo') or upgrade_id.startswith('u')):
                 self.last_restore_energy_purchase_time.setdefault(upgrade_id, None)
 
+        raffles = user.get("raffles", [])
+        if raffles:
+            self.raffle_id = raffles[0].get("id")
+            self.raffle_tickets = raffles[0].get("ticketsCount", 0)  
+
+        raffle_info = data.get("raffles", [])
+        if raffle_info:
+            self.raffle_total_tickets = raffle_info[0].get("ticketsCount", 0)
+            stages = raffle_info[0].get("stages", [])
+            self.raffle_prizes_count = sum(sum(prize["count"] for prize in stage["prizes"]) for stage in stages)
+
     async def parse_upgraded_at(self, upgraded_at):
         try:
             if isinstance(upgraded_at, str):
@@ -228,10 +243,10 @@ class Tapper:
             elif isinstance(upgraded_at, int):
                 return datetime.fromtimestamp(upgraded_at, tz=timezone.utc)
             else:
-                logger.error(f"{self.session_name} | Unknown time format: {upgraded_at}")
+                add_log(f"{self.session_name} | Unknown time format: {upgraded_at}")
                 return None
         except Exception as e:
-            logger.error(f"{self.session_name} | Error parsing time '{upgraded_at}': {e}")
+            add_log(f"{self.session_name} | Error parsing time '{upgraded_at}': {e}")
             return None
 
     async def send_taps(self, http_client: aiohttp.ClientSession, taps: int, current_energy: int) -> dict:
@@ -248,28 +263,28 @@ class Tapper:
             )
             if response.status != 200:
                 response_text = await response.text()
-                logger.error(f"{self.session_name} | send_taps FAILED: Status={response.status}, Response={response_text}")
+                add_log(f"{self.session_name} | send_taps FAILED: Status={response.status}, Response={response_text}")
                 response.raise_for_status()
             response_json = await response.json()
-            logger.info(f"{self.session_name} | Sent {taps} taps. Energy used: {taps}.")
+            add_log(f"{self.session_name} | Sent {taps} taps. Energy used: {taps}.")
             return response_json
         except aiohttp.ClientResponseError as error:
             try:
                 response_text = await error.response.text()
             except Exception:
                 response_text = "No response body"
-            logger.error(f"{self.session_name} | ClientResponseError during send_taps: Status={error.status}, Message={error.message}, Response={response_text}")
+            add_log(f"{self.session_name} | ClientResponseError during send_taps: Status={error.status}, Message={error.message}, Response={response_text}")
             await asyncio.sleep(3)
             return {}
         except Exception as error:
-            logger.error(f"{self.session_name} | Unexpected error during send_taps: {error}")
+            add_log(f"{self.session_name} | Unexpected error during send_taps: {error}")
             await asyncio.sleep(3)
             return {}
 
     async def buy_upgrade(self, http_client: aiohttp.ClientSession, upgrade_id: str) -> dict:
         try:
             if upgrade_id not in self.upgrades:
-                logger.error(f"{self.session_name} | Upgrade '{upgrade_id}' not found in upgrades data.")
+                add_log(f"{self.session_name} | Upgrade '{upgrade_id}' not found in upgrades data.")
                 return {}
             http_client.headers['Referer'] = 'https://qlyuker.io/upgrades'
             http_client.headers['Onboarding'] = str(self.onboarding)
@@ -285,11 +300,11 @@ class Tapper:
                     delay_seconds = self.upgrade_delay.get(str(current_level), 0)
                     next_available_time = datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(seconds=delay_seconds)
                     self.last_restore_energy_purchase_time[upgrade_id] = next_available_time
-                    logger.info(f"{self.session_name} | Cooldown for '{upgrade_id}' set to {delay_seconds} seconds.")
+                    add_log(f"{self.session_name} | Cooldown for '{upgrade_id}' set to {delay_seconds} seconds.")
                 response.raise_for_status()
             response_json = await response.json()
             await self.update_upgrade_after_purchase(response_json)
-            logger.info(f"{self.session_name} | Successfully purchased upgrade '{upgrade_id}'.")
+            add_log(f"{self.session_name} | Successfully purchased upgrade '{upgrade_id}'.")
             self.last_restore_energy_purchase_time[upgrade_id] = datetime.utcnow().replace(tzinfo=timezone.utc)
             return response_json
         except aiohttp.ClientResponseError as error:
@@ -300,7 +315,7 @@ class Tapper:
             await asyncio.sleep(3)
             return {}
         except Exception as error:
-            logger.error(f"{self.session_name} | Unexpected error during buy_upgrade '{upgrade_id}': {error}")
+            add_log(f"{self.session_name} | Unexpected error during buy_upgrade '{upgrade_id}': {error}")
             await asyncio.sleep(3)
             return {}
 
@@ -325,7 +340,7 @@ class Tapper:
                     "condition": upgrade.get('condition', {}),
                     "next": buy_response.get('next', {})
                 }
-                logger.info(f"{self.session_name} | Upgrade '{upgrade_id}' added after purchase.")
+                add_log(f"{self.session_name} | Upgrade '{upgrade_id}' added after purchase.")
         self.current_coins = buy_response.get('currentCoins', self.current_coins)
         self.current_energy = buy_response.get('currentEnergy', self.current_energy)
         self.max_energy = buy_response.get('maxEnergy', self.max_energy)
@@ -340,20 +355,20 @@ class Tapper:
             )
             if response.status != 200:
                 response_text = await response.text()
-                logger.error(f"{self.session_name} | claim_daily_reward FAILED: Status={response.status}, Response={response_text}")
+                add_log(f"{self.session_name} | claim_daily_reward FAILED: Status={response.status}, Response={response_text}")
                 response.raise_for_status()
             response_json = await response.json()
-            logger.info(f"{self.session_name} | Daily reward claimed successfully.")
+            add_log(f"{self.session_name} | Daily reward claimed successfully.")
             return response_json
         except aiohttp.ClientResponseError as error:
             try:
                 response_text = await error.response.text()
             except Exception:
                 response_text = "No response body"
-            logger.error(f"{self.session_name} | ClientResponseError during claim_daily_reward: Status={error.status}, Message={error.message}, Response={response_text}")
+            add_log(f"{self.session_name} | ClientResponseError during claim_daily_reward: Status={error.status}, Message={error.message}, Response={response_text}")
             return {}
         except Exception as error:
-            logger.error(f"{self.session_name} | Unexpected error during claim_daily_reward: {error}")
+            add_log(f"{self.session_name} | Unexpected error during claim_daily_reward: {error}")
             return {}
 
     async def collect_daily_reward(self, http_client: aiohttp.ClientSession):
@@ -363,19 +378,19 @@ class Tapper:
                 day = daily_reward.get('day', 0)
                 claimed = daily_reward.get('claimed', None)
                 if not claimed:
-                    logger.info(f"{self.session_name} | Daily reward not claimed yet. Attempting to claim.")
+                    add_log(f"{self.session_name} | Daily reward not claimed yet. Attempting to claim.")
                     reward_response = await self.claim_daily_reward(http_client=http_client)
                     if reward_response:
                         self.user_data.update(reward_response.get('user', {}))
                         self.current_coins = self.user_data.get('currentCoins', self.current_coins)
-                        logger.info(f"{self.session_name} | Daily reward claimed. Current coins: {self.current_coins}")
+                        add_log(f"{self.session_name} | Daily reward claimed. Current coins: {self.current_coins}")
                     else:
-                        logger.error(f"{self.session_name} | Failed to claim daily reward.")
+                        add_log(f"{self.session_name} | Failed to claim daily reward.")
                 else:
-                    logger.info(f"{self.session_name} | Daily reward already received. Will try again in 8 hours.")
+                    add_log(f"{self.session_name} | Daily reward already received. Will try again in 8 hours.")
                 await asyncio.sleep(8 * 3600)
             except Exception as error:
-                logger.error(f"{self.session_name} | [Daily Bonus Task] Error: {error}")
+                add_log(f"{self.session_name} | [Daily Bonus Task] Error: {error}")
                 import traceback
                 traceback.print_exc()
                 await asyncio.sleep(60)
@@ -385,29 +400,29 @@ class Tapper:
             try:
                 tasks = self.user_data.get('tasks', [])
                 if not tasks:
-                    logger.info(f"{self.session_name} | No tasks available.")
+                    add_log(f"{self.session_name} | No tasks available.")
                 else:
-                    logger.info(f"{self.session_name} | Attempting to complete tasks.")
+                    add_log(f"{self.session_name} | Attempting to complete tasks.")
                 for task in tasks:
                     task_id = task.get('id')
                     if task.get('completed'):
-                        logger.info(f"{self.session_name} | Task '{task_id}' already completed.")
+                        add_log(f"{self.session_name} | Task '{task_id}' already completed.")
                         continue
                     task_response = await self.check_task(http_client=http_client, task_id=task_id)
                     if task_response.get('success'):
                         reward = task_response.get('reward', 0)
-                        logger.info(f"{self.session_name} | Task '{task_id}' completed. Reward: {reward} coins.")
+                        add_log(f"{self.session_name} | Task '{task_id}' completed. Reward: {reward} coins.")
                         self.current_coins += reward
-                        logger.info(f"{self.session_name} | Current coins after reward: {self.current_coins}")
+                        add_log(f"{self.session_name} | Current coins after reward: {self.current_coins}")
                     else:
-                        logger.info(f"{self.session_name} | Task '{task_id}' not completed or already claimed.")
+                        add_log(f"{self.session_name} | Task '{task_id}' not completed or already claimed.")
                     delay = random.uniform(settings.MIN_DELAY_BETWEEN_TASKS, settings.MAX_DELAY_BETWEEN_TASKS)
-                    logger.info(f"{self.session_name} | Waiting for {delay:.2f} seconds before next task.")
+                    add_log(f"{self.session_name} | Waiting for {delay:.2f} seconds before next task.")
                     await asyncio.sleep(delay)
-                logger.info(f"{self.session_name} | Finished attempting tasks. Will try again in 8 hours.")
+                add_log(f"{self.session_name} | Finished attempting tasks. Will try again in 8 hours.")
                 await asyncio.sleep(8 * 3600)
             except Exception as error:
-                logger.error(f"{self.session_name} | [Tasks Collection] Error: {error}")
+                add_log(f"{self.session_name} | [Tasks Collection] Error: {error}")
                 import traceback
                 traceback.print_exc()
                 await asyncio.sleep(60)
@@ -430,11 +445,11 @@ class Tapper:
                 response_text = await error.response.text()
             except Exception:
                 response_text = "No response body"
-            logger.error(f"{self.session_name} | ClientResponseError during check_task '{task_id}': Status={error.status}, Message={error.message}, Response={response_text}")
+            add_log(f"{self.session_name} | ClientResponseError during check_task '{task_id}': Status={error.status}, Message={error.message}, Response={response_text}")
             await asyncio.sleep(3)
             return {}
         except Exception as error:
-            logger.error(f"{self.session_name} | Unexpected error during check_task '{task_id}': {error}")
+            add_log(f"{self.session_name} | Unexpected error during check_task '{task_id}': {error}")
             await asyncio.sleep(3)
             return {}
 
@@ -442,9 +457,9 @@ class Tapper:
         try:
             response = await http_client.get(url='https://httpbin.org/ip', timeout=aiohttp.ClientTimeout(total=5))
             ip = (await response.json()).get('origin')
-            logger.info(f"{self.session_name} | Proxy IP: {ip}")
+            add_log(f"{self.session_name} | Proxy IP: {ip}")
         except Exception as error:
-            logger.error(f"{self.session_name} | Proxy: {proxy} | Error: {error}")
+            add_log(f"{self.session_name} | Proxy: {proxy} | Error: {error}")
 
     async def prioritize_upgrades(self, user_data: dict) -> list:
         available_upgrades = [
@@ -494,7 +509,7 @@ class Tapper:
             })
 
         if not upgrade_scores:
-            logger.info(f"{self.session_name} | No upgrades meet the conditions for purchase.")
+            add_log(f"{self.session_name} | No upgrades meet the conditions for purchase.")
             return []
 
         sorted_upgrades = sorted(
@@ -543,13 +558,13 @@ class Tapper:
             return False
 
         if upgrade.get('maxLevel', False):
-            logger.info(f"{self.session_name} | Upgrade '{upgrade_id}' has reached max level.")
+            add_log(f"{self.session_name} | Upgrade '{upgrade_id}' has reached max level.")
             return False
 
         if upgrade_id.startswith('restoreEnergy') or upgrade_id.startswith('promo') or upgrade_id.startswith('u'):
             if upgrade.get('dayLimitation', 0) > 0:
                 if self.restore_energy_usage_today >= self.restore_energy_daily_limit:
-                    logger.info(f"{self.session_name} | Daily limit for '{upgrade_id}' reached.")
+                    add_log(f"{self.session_name} | Daily limit for '{upgrade_id}' reached.")
                     return False
             last_purchase = self.last_restore_energy_purchase_time.get(upgrade_id)
             if last_purchase:
@@ -559,7 +574,7 @@ class Tapper:
                 elapsed_time = (current_time - last_purchase).total_seconds()
                 if elapsed_time < delay_seconds:
                     remaining_time = delay_seconds - elapsed_time
-                    logger.info(f"{self.session_name} | Upgrade '{upgrade_id}' is on cooldown. Remaining time: {int(remaining_time)} seconds.")
+                    add_log(f"{self.session_name} | Upgrade '{upgrade_id}' is on cooldown. Remaining time: {int(remaining_time)} seconds.")
                     return False
             return True
         return True
@@ -576,12 +591,12 @@ class Tapper:
                     efficiency = target_upgrade['efficiency']
 
                     if price <= self.current_coins:
-                        logger.info(f"{self.session_name} | Attempting to purchase upgrade '{upgrade_id}' for {price} coins. Expected increment: {increment}.")
+                        add_log(f"{self.session_name} | Attempting to purchase upgrade '{upgrade_id}' for {price} coins. Expected increment: {increment}.")
                         upgrade_response = await self.buy_upgrade(http_client=http_client, upgrade_id=upgrade_id)
                         if upgrade_response:
                             self.current_coins = upgrade_response.get('currentCoins', self.current_coins)
-                            logger.info(f"{self.session_name} | Purchased upgrade '{upgrade_id}'. Current coins: {self.current_coins}")
-                            logger.info(f"{self.session_name} | Sleeping for {settings.SLEEP_AFTER_UPGRADE} seconds after purchase.")
+                            add_log(f"{self.session_name} | Purchased upgrade '{upgrade_id}'. Current coins: {self.current_coins}")
+                            add_log(f"{self.session_name} | Sleeping for {settings.SLEEP_AFTER_UPGRADE} seconds after purchase.")
                             await asyncio.sleep(settings.SLEEP_AFTER_UPGRADE)
                             continue
                     else:
@@ -592,65 +607,98 @@ class Tapper:
                         else:
                             time_needed_str = "unknown (mine_per_sec + energy_per_sec = 0)"
 
-                        logger.info(
+                        add_log(
                             f"{self.session_name} | Not enough coins to buy upgrade '{upgrade_id}'. "
                             f"Need: {coins_needed} coins. Time to accumulate: {time_needed_str}."
                         )
                 else:
-                    logger.info(f"{self.session_name} | No upgrades available for purchase at this time.")
+                    add_log(f"{self.session_name} | No upgrades available for purchase at this time.")
 
                 await asyncio.sleep(settings.UPGRADE_CHECK_DELAY)
             except Exception as error:
-                logger.error(f"{self.session_name} | [Upgrade Loop] Error: {error}")
+                add_log(f"{self.session_name} | [Upgrade Loop] Error: {error}")
                 import traceback
-                logger.error(traceback.format_exc())
+                add_log(traceback.format_exc())
                 await asyncio.sleep(settings.RETRY_DELAY)
 
     async def tap_loop(self, http_client: aiohttp.ClientSession):
         while settings.ENABLE_TAPS:
             try:
                 if self.current_energy <= self.max_energy * settings.ENERGY_THRESHOLD:
-                    logger.info(f"{self.session_name} | Energy ({self.current_energy}/{self.max_energy}) below threshold ({settings.ENERGY_THRESHOLD * 100}%).")
+                    add_log(f"{self.session_name} | Energy ({self.current_energy}/{self.max_energy}) below threshold ({settings.ENERGY_THRESHOLD * 100}%).")
                     if settings.ENABLE_UPGRADES and await self.is_upgrade_available('restoreEnergy'):
-                        logger.info(f"{self.session_name} | Attempting to purchase 'restoreEnergy' upgrade.")
+                        add_log(f"{self.session_name} | Attempting to purchase 'restoreEnergy' upgrade.")
                         upgrade_response = await self.buy_upgrade(http_client=http_client, upgrade_id='restoreEnergy')
                         if upgrade_response and upgrade_response.get('currentEnergy', 0) > self.current_energy:
                             self.current_energy = upgrade_response['currentEnergy']
                             self.restore_energy_usage_today += 1
-                            logger.info(f"{self.session_name} | Energy restored to {self.current_energy}.")
-                            logger.info(f"{self.session_name} | Sleeping for {settings.SLEEP_AFTER_UPGRADE} seconds after upgrade.")
+                            add_log(f"{self.session_name} | Energy restored to {self.current_energy}.")
+                            add_log(f"{self.session_name} | Sleeping for {settings.SLEEP_AFTER_UPGRADE} seconds after upgrade.")
                             await asyncio.sleep(settings.SLEEP_AFTER_UPGRADE)
                             continue
                         else:
-                            logger.info(f"{self.session_name} | Unable to restore energy at this time.")
+                            add_log(f"{self.session_name} | Unable to restore energy at this time.")
                     else:
-                        logger.info(f"{self.session_name} | 'restoreEnergy' not available for purchase or upgrades disabled. Sleeping for {settings.SLEEP_ON_LOW_ENERGY} seconds.")
+                        add_log(f"{self.session_name} | 'restoreEnergy' not available for purchase or upgrades disabled. Sleeping for {settings.SLEEP_ON_LOW_ENERGY} seconds.")
                         await asyncio.sleep(settings.SLEEP_ON_LOW_ENERGY)
                         continue
 
                 taps = min(self.current_energy, randint(settings.MIN_TAPS, settings.MAX_TAPS))
-                logger.info(f"{self.session_name} | Sending {taps} taps. Energy before tap: {self.current_energy}")
+                add_log(f"{self.session_name} | Sending {taps} taps. Energy before tap: {self.current_energy}")
                 response = await self.send_taps(http_client=http_client, taps=taps, current_energy=self.current_energy)
 
                 if not response:
-                    logger.error(f"{self.session_name} | Failed to send taps")
+                    add_log(f"{self.session_name} | Failed to send taps")
                     await asyncio.sleep(3)
                     continue
 
                 self.current_energy = response.get('currentEnergy', self.current_energy)
                 self.current_coins = response.get('currentCoins', self.current_coins)
 
-                logger.info(f"{self.session_name} | Taps sent: {taps}. Current coins: {self.current_coins}, Energy: {self.current_energy}/{self.max_energy}")
+                add_log(f"{self.session_name} | Taps sent: {taps}. Current coins: {self.current_coins}, Energy: {self.current_energy}/{self.max_energy}")
 
                 sleep_duration = randint(settings.MIN_SLEEP_BETWEEN_TAPS, settings.MAX_SLEEP_BETWEEN_TAPS)
-                logger.info(f"{self.session_name} | Sleeping for {sleep_duration} seconds before next tap.")
+                add_log(f"{self.session_name} | Sleeping for {sleep_duration} seconds before next tap.")
                 await asyncio.sleep(sleep_duration)
 
             except Exception as error:
-                logger.error(f"{self.session_name} | [Tap Loop] Error: {error}")
+                add_log(f"{self.session_name} | [Tap Loop] Error: {error}")
                 import traceback
-                logger.error(traceback.format_exc())
+                add_log(traceback.format_exc())
                 await asyncio.sleep(60)
+
+    async def buy_raffle_tickets(self, http_client: aiohttp.ClientSession):
+        if not self.raffle_id:
+            add_log(f"{self.session_name} | No active raffle found.")
+            return
+
+        tickets_to_buy = self.current_coins // 50000 
+        if tickets_to_buy == 0:
+            add_log(f"{self.session_name} | Not enough coins to buy raffle tickets.")
+            return
+
+        try:
+            json_data = {"raffleId": self.raffle_id, "ticketsCount": tickets_to_buy}
+            response = await http_client.post(
+                url='https://qlyuker.io/api/raffles/buy',
+                json=json_data
+            )
+            if response.status == 200:
+                data = await response.json()
+                self.current_coins = data.get("currentCoins", self.current_coins)
+                self.raffle_tickets = data.get("ticketsCount", self.raffle_tickets)
+                self.raffle_total_tickets = data.get("ticketsTotal", self.raffle_total_tickets)
+                add_log(f"{self.session_name} | Bought {tickets_to_buy} raffle tickets. Total tickets: {self.raffle_tickets}")
+            else:
+                add_log(f"{self.session_name} | Failed to buy raffle tickets. Status: {response.status}")
+        except Exception as e:
+            add_log(f"{self.session_name} | Error buying raffle tickets: {e}")
+
+    async def raffle_loop(self, http_client: aiohttp.ClientSession):
+        while settings.ENABLE_RAFFLE:
+            if not settings.RAFFLE_SESSIONS or self.session_name in settings.RAFFLE_SESSIONS:
+                await self.buy_raffle_tickets(http_client)
+            await asyncio.sleep(settings.RAFFLE_BUY_INTERVAL)
 
     async def get_status_panel(self):
         stats_table = Table(show_header=False, box=None)
@@ -663,6 +711,11 @@ class Tapper:
         activity_log.append(f"Last login: {datetime.now().strftime('%H:%M:%S')}\n")
         activity_log.append(f"Status: Active\n")
         activity_log.append(f"Friends: {self.friends_count}\n")
+
+        if settings.ENABLE_RAFFLE and self.raffle_id:
+            win_chance = (self.raffle_tickets / self.raffle_total_tickets) * self.raffle_prizes_count if self.raffle_total_tickets > 0 else 0
+            stats_table.add_row("Raffle Tickets", f"{self.raffle_tickets}")
+            stats_table.add_row("Win Chance", f"{win_chance:.4%}")
 
         panel = Panel(
             Columns([stats_table, activity_log]),
@@ -679,21 +732,21 @@ class Tapper:
             if proxy:
                 await self.check_proxy(http_client=http_client, proxy=proxy)
 
-            logger.info(f"{self.session_name} | Starting main bot loop.")
+            add_log(f"{self.session_name} | Starting main bot loop.")
 
             while True:
                 try:
-                    logger.info(f"{self.session_name} | Main loop iteration started.")
+                    add_log(f"{self.session_name} | Main loop iteration started.")
 
                     self.tg_web_data = await self.get_tg_web_data(proxy=proxy)
                     if not self.tg_web_data:
-                        logger.error(f"{self.session_name} | Failed to get tg_web_data in main loop")
+                        add_log(f"{self.session_name} | Failed to get tg_web_data in main loop")
                         await asyncio.sleep(60)
                         continue
 
                     login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
                     if not login_data:
-                        logger.error(f"{self.session_name} | Login failed")
+                        add_log(f"{self.session_name} | Login failed")
                         await asyncio.sleep(3)
                         continue
 
@@ -702,7 +755,7 @@ class Tapper:
                     self.current_coins = self.user_data.get("currentCoins", self.current_coins)
                     self.max_energy = self.user_data.get("maxEnergy", self.max_energy)
 
-                    logger.info(f"{self.session_name} | Logged in successfully. Current coins: {self.current_coins}, Energy: {self.current_energy}/{self.max_energy}")
+                    add_log(f"{self.session_name} | Logged in successfully. Current coins: {self.current_coins}, Energy: {self.current_energy}/{self.max_energy}")
 
                     tasks = []
                     if settings.ENABLE_CLAIM_REWARDS:
@@ -713,19 +766,20 @@ class Tapper:
                         tasks.append(asyncio.create_task(self.upgrade_loop(http_client=http_client)))
                     if settings.ENABLE_TAPS:
                         tasks.append(asyncio.create_task(self.tap_loop(http_client=http_client)))
+                    if settings.ENABLE_RAFFLE:
+                        tasks.append(asyncio.create_task(self.raffle_loop(http_client=http_client)))
 
-                    # Ждем выполнения всех задач
                     await asyncio.gather(*tasks)
 
                 except InvalidSession as error:
-                    logger.error(f"{self.session_name} | Invalid session: {error}")
+                    add_log(f"{self.session_name} | Invalid session: {error}")
                     self.current_energy = -1
                     raise error
 
                 except Exception as error:
-                    logger.error(f"{self.session_name} | Unknown error: {error}")
+                    add_log(f"{self.session_name} | Unknown error: {error}")
                     import traceback
-                    logger.error(traceback.format_exc())
+                    add_log(traceback.format_exc())
                     await asyncio.sleep(3)
 
 async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
@@ -739,6 +793,8 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
         table.add_column("Coins", justify="right", style="green")
         table.add_column("Energy", justify="right", style="yellow")
         table.add_column("Mine/h", justify="right", style="magenta")
+        table.add_column("Tickets", justify="right", style="blue")
+        table.add_column("Win Chance", justify="right", style="purple")
         table.add_column("Status", justify="center", style="red")
 
         for tapper in tappers:
@@ -755,11 +811,14 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
                 status_emoji = Emoji("red_circle")
                 status_color = "red"
             
+            win_chance = (tapper.raffle_tickets / tapper.raffle_total_tickets) * tapper.raffle_prizes_count if tapper.raffle_total_tickets > 0 else 0
             table.add_row(
                 tapper.session_name,
                 format_number(tapper.current_coins),
                 f"{max(tapper.current_energy, 0)}/{tapper.max_energy}",
                 format_number(tapper.mine_per_sec * 3600),
+                str(tapper.raffle_tickets), 
+                f"{win_chance:.4%}",
                 f"[{status_color}]{status_emoji}[/]"
             )
 

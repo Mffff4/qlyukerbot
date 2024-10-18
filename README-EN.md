@@ -1,4 +1,3 @@
-
 # Qlyuker Bot
 
 [![Bot Link](https://img.shields.io/badge/Telegram-Bot_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/qlyukerbot/start?startapp=bro-228618799)
@@ -76,7 +75,7 @@
 2. **Windows:**
    ```bash
    python -m venv venv
-   venv\Scriptsctivate
+   venv\Scripts\activate
    pip install -r requirements.txt
    copy .env-example .env
    python main.py
@@ -105,7 +104,9 @@
 | **ENABLE_CLAIM_REWARDS**| True                    | Flag to enable/disable reward claiming.                                                                                                      |
 | **ENABLE_UPGRADES**    | True                     | Flag to enable/disable upgrades.                                                                                                             |
 | **ENABLE_TASKS**       | True                     | Flag to enable/disable task execution.                                                                                                       |
-
+| **ENABLE_RAFFLE**      | True                    | Flag to enable/disable participation in the raffle.                                                                                        |
+| **RAFFLE_BUY_INTERVAL**| 600                     | Interval between ticket purchases for the raffle (in seconds).                                                                             |
+| **RAFFLE_SESSIONS**    | []                      | List of sessions to participate in the raffle. An empty list means all sessions participate. Example: ["session1", "session2"]            |
 
 ---
 

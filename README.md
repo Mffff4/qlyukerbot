@@ -1,4 +1,3 @@
-
 # Qlyuker Bot
 
 [![Bot Link](https://img.shields.io/badge/Telegram-Бот_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/qlyukerbot/start?startapp=bro-228618799)
@@ -76,7 +75,7 @@
 2. **Windows:**
    ```bash
    python -m venv venv
-   venv\Scriptsctivate
+   venv\Scripts\activate
    pip install -r requirements.txt
    copy .env-example .env
    python main.py
@@ -106,7 +105,19 @@
 | **ENABLE_CLAIM_REWARDS**| True                    | Флаг включения/отключения функции сбора наград.                                                                                |
 | **ENABLE_UPGRADES**     | True                    | Флаг включения/отключения апгрейдов.                                                                                            |
 | **ENABLE_TASKS**        | True                    | Флаг включения/отключения выполнения задач.                                                                                    |
+| **ENABLE_RAFFLE**      | True                    | Флаг включения/отключения функции участия в розыгрыше.                                                                                   |
+| **RAFFLE_BUY_INTERVAL** | 600                     | Интервал между покупками билетов для розыгрыша (в секундах).                                                                             |
+| **RAFFLE_SESSIONS**    | []                      | Список сессий для участия в розыгрыше. Пустой список означает участие всех сессий. Пример: ["session1", "session2"]                      |
 
+---
+
+## 🎟️ Настройка участия в розыгрыше
+
+Для настройки участия в розыгрыше используйте следующие параметры в файле `.env`:
+
+1. `ENABLE_RAFFLE=True` - включает функцию участия в розыгрыше.
+2. `RAFFLE_BUY_INTERVAL=600` - устанавливает интервал между покупками билетов (в секундах).
+3. `RAFFLE_SESSIONS=["session1", "session2"]` - указывает конкретные сессии для участия в розыгрыше. Если оставить пустым `[]`, все сессии будут участвовать.
 
 ---
 

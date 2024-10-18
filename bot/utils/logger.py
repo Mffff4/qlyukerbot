@@ -4,10 +4,12 @@ from rich.panel import Panel
 import logging
 from rich.emoji import Emoji
 from rich.text import Text
+from collections import deque
+import asyncio
 
 console = Console()
 
-log_buffer = []
+log_buffer = deque(maxlen=100) 
 
 class BufferedHandler(logging.Handler):
     def emit(self, record):
@@ -30,9 +32,7 @@ class BufferedHandler(logging.Handler):
         color = level_colors.get(record.levelname, "white")
         time_str = record.asctime.split()[1].split(',')[0] 
         formatted_entry = f"{emoji} {time_str} | [{color}]{record.message}[/]"
-        log_buffer.append(formatted_entry)
-        if len(log_buffer) > 100:
-            log_buffer.pop(0)
+        log_buffer.appendleft(formatted_entry) 
 
 logger = logging.getLogger("rich")
 logger.setLevel(logging.INFO)
@@ -47,8 +47,12 @@ logging.getLogger("pyrogram").setLevel(logging.WARNING)
 logging.getLogger("pyrogram.session.auth").setLevel(logging.WARNING)
 logging.getLogger("pyrogram.session.session").setLevel(logging.WARNING)
 
-def get_logs(n=30):
-    return Text.from_markup("\n".join(log_buffer[-n:]))
-
+def add_log(message):
+    log_buffer.appendleft(message)
 def get_log_panel():
-    return Panel(get_logs(), title="Logs", border_style="yellow")
+    log_text = Text("\n".join(list(log_buffer)))
+    return Panel(log_text, title="Logs", border_style="yellow")
+
+async def wait_for_log_update():
+    await log_update_event.wait()
+    log_update_event.clear()
