@@ -688,7 +688,10 @@ class Tapper:
                 self.current_coins = data.get("currentCoins", self.current_coins)
                 self.raffle_tickets = data.get("ticketsCount", self.raffle_tickets)
                 self.raffle_total_tickets = data.get("ticketsTotal", self.raffle_total_tickets)
-                add_log(f"{self.session_name} | Bought {tickets_to_buy} raffle tickets. Total tickets: {self.raffle_tickets}")
+                add_log(f"{self.session_name} | Bought {tickets_to_buy} raffle tickets. Total tickets: {self.raffle_tickets}. Next purchase in {settings.RAFFLE_BUY_INTERVAL} seconds.")
+                
+                # Обновляем данные в таблице
+                await update_left_panel()
             else:
                 add_log(f"{self.session_name} | Failed to buy raffle tickets. Status: {response.status}")
         except Exception as e:
@@ -698,6 +701,8 @@ class Tapper:
         while settings.ENABLE_RAFFLE:
             if not settings.RAFFLE_SESSIONS or self.session_name in settings.RAFFLE_SESSIONS:
                 await self.buy_raffle_tickets(http_client)
+            
+            # Ждем указанный интервал перед следующей покупкой
             await asyncio.sleep(settings.RAFFLE_BUY_INTERVAL)
 
     async def get_status_panel(self):
@@ -797,7 +802,10 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
         table.add_column("Win Chance", justify="right", style="purple")
         table.add_column("Status", justify="center", style="red")
 
-        for tapper in tappers:
+        # Сортируем tappers по имени сессии
+        sorted_tappers = sorted(tappers, key=lambda x: x.session_name)
+
+        for tapper in sorted_tappers:
             if tapper.current_energy > 0:
                 status_emoji = Emoji("green_circle")
                 status_color = "green"
