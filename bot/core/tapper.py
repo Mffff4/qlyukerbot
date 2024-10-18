@@ -730,7 +730,27 @@ class Tapper:
         )
         return panel
 
+    async def refresh_account_data(self, http_client: aiohttp.ClientSession):
+        try:
+            self.tg_web_data = await self.get_tg_web_data(proxy=self.proxy)
+            if not self.tg_web_data:
+                add_log(f"{self.session_name} | Failed to get tg_web_data during refresh")
+                return False
+
+            login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
+            if not login_data:
+                add_log(f"{self.session_name} | Login failed during refresh")
+                return False
+
+            await self.process_auth_data(login_data)
+            add_log(f"{self.session_name} | Account data refreshed. Current coins: {self.current_coins}, Energy: {self.current_energy}/{self.max_energy}")
+            return True
+        except Exception as error:
+            add_log(f"{self.session_name} | Error during account refresh: {error}")
+            return False
+
     async def run(self, proxy: str | None) -> None:
+        self.proxy = proxy
         proxy_conn = ProxyConnector.from_url(proxy) if proxy else None
 
         async with aiohttp.ClientSession(headers=headers, connector=proxy_conn) as http_client:
@@ -743,24 +763,9 @@ class Tapper:
                 try:
                     add_log(f"{self.session_name} | Main loop iteration started.")
 
-                    self.tg_web_data = await self.get_tg_web_data(proxy=proxy)
-                    if not self.tg_web_data:
-                        add_log(f"{self.session_name} | Failed to get tg_web_data in main loop")
+                    if not await self.refresh_account_data(http_client):
                         await asyncio.sleep(60)
                         continue
-
-                    login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
-                    if not login_data:
-                        add_log(f"{self.session_name} | Login failed")
-                        await asyncio.sleep(3)
-                        continue
-
-                    self.user_data = login_data.get('user', {})
-                    self.current_energy = self.user_data.get("currentEnergy", self.current_energy)
-                    self.current_coins = self.user_data.get("currentCoins", self.current_coins)
-                    self.max_energy = self.user_data.get("maxEnergy", self.max_energy)
-
-                    add_log(f"{self.session_name} | Logged in successfully. Current coins: {self.current_coins}, Energy: {self.current_energy}/{self.max_energy}")
 
                     tasks = []
                     if settings.ENABLE_CLAIM_REWARDS:
@@ -774,6 +779,9 @@ class Tapper:
                     if settings.ENABLE_RAFFLE:
                         tasks.append(asyncio.create_task(self.raffle_loop(http_client=http_client)))
 
+                    # Добавляем задачу для периодического обновления данных аккаунта
+                    tasks.append(asyncio.create_task(self.periodic_refresh(http_client)))
+
                     await asyncio.gather(*tasks)
 
                 except InvalidSession as error:
@@ -786,6 +794,11 @@ class Tapper:
                     import traceback
                     add_log(traceback.format_exc())
                     await asyncio.sleep(3)
+
+    async def periodic_refresh(self, http_client: aiohttp.ClientSession):
+        while True:
+            await asyncio.sleep(300)  # Обновляем каждые 5 минут
+            await self.refresh_account_data(http_client)
 
 async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
     tappers = [Tapper(tg_client) for tg_client in tg_clients]
