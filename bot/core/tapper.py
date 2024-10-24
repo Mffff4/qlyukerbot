@@ -768,7 +768,7 @@ class Tapper:
         add_log(f"{self.session_name} | Starting with proxy: {proxy}")
         proxy_conn = ProxyConnector.from_url(proxy) if proxy else None
         
-        timeout = aiohttp.ClientTimeout(total=30)  # Увеличиваем таймаут до 30 секунд
+        timeout = aiohttp.ClientTimeout(total=30) 
         
         async with aiohttp.ClientSession(headers=headers, connector=proxy_conn, timeout=timeout) as http_client:
             add_log(f"{self.session_name} | Created aiohttp session")
@@ -825,7 +825,7 @@ class Tapper:
     async def periodic_refresh(self, http_client: aiohttp.ClientSession):
         while True:
             with suppress(asyncio.CancelledError):
-                await asyncio.sleep(300)  # Обновляем каждые 5 минут
+                await asyncio.sleep(300)  
                 await self.refresh_account_data(http_client)
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(5))
@@ -847,7 +847,6 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
         table.add_column("Win Chance", justify="right", style="purple")
         table.add_column("Status", justify="center", style="red")
 
-        # Сортируем tappers по имени сессии
         sorted_tappers = sorted(tappers, key=lambda x: x.session_name)
 
         for tapper in sorted_tappers:

@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     RAFFLE_BUY_INTERVAL: int = 600
     RAFFLE_SESSIONS: list[str] = []
 
-    SLEEP_HOURS: list[str] = []  # Теперь по умолчанию пустой список
+    #SLEEP_HOURS: list[str] = []
 
     @property
     def MIN_TAPS(self):
