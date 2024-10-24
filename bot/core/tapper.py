@@ -23,6 +23,7 @@ from rich.logging import RichHandler
 from rich.emoji import Emoji
 from rich.columns import Columns
 import logging
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 from bot.config import settings
 from bot.utils.logger import logger, get_log_panel, add_log, wait_for_log_update
@@ -145,12 +146,16 @@ class Tapper:
 
     async def login(self, http_client: aiohttp.ClientSession, tg_web_data: str) -> dict:
         try:
+            add_log(f"{self.session_name} | Attempting to login")
             http_client.headers['Onboarding'] = '0'
             json_data = {"startData": tg_web_data}
+            add_log(f"{self.session_name} | Sending login request")
             response = await http_client.post(
                 url='https://qlyuker.io/api/auth/start',
-                json=json_data
+                json=json_data,
+                timeout=aiohttp.ClientTimeout(total=30)  # Увеличиваем таймаут до 30 секунд
             )
+            add_log(f"{self.session_name} | Received response with status: {response.status}")
             if response.status != 200:
                 response_text = await response.text()
                 add_log(f"{self.session_name} | login FAILED: Status={response.status}, Response={response_text}")
@@ -160,9 +165,8 @@ class Tapper:
             await self.process_auth_data(response_json)
             add_log(f"{self.session_name} | Successfully logged in.")
             for cookie in http_client.cookie_jar:
-                pass
+                add_log(f"{self.session_name} | Cookie: {cookie.key}={cookie.value}")
             return response_json
-
         except aiohttp.ClientResponseError as error:
             try:
                 response_text = await error.response.text()
@@ -456,8 +460,9 @@ class Tapper:
 
     async def check_proxy(self, http_client: aiohttp.ClientSession, proxy: Proxy) -> None:
         try:
-            response = await http_client.get(url='https://httpbin.org/ip', timeout=aiohttp.ClientTimeout(total=5))
-            ip = (await response.json()).get('origin')
+            response = await http_client.get(url='http://1.1.1.1/cdn-cgi/trace', timeout=aiohttp.ClientTimeout(total=30))
+            text = await response.text()
+            ip = next((line.split('=')[1] for line in text.splitlines() if line.startswith('ip=')), None)
             add_log(f"{self.session_name} | Proxy IP: {ip}")
         except Exception as error:
             add_log(f"{self.session_name} | Proxy: {proxy} | Error: {error}")
@@ -731,12 +736,13 @@ class Tapper:
 
     async def refresh_account_data(self, http_client: aiohttp.ClientSession):
         try:
+            add_log(f"{self.session_name} | Refreshing account data")
             self.tg_web_data = await self.get_tg_web_data(proxy=self.proxy)
             if not self.tg_web_data:
                 add_log(f"{self.session_name} | Failed to get tg_web_data during refresh")
                 return False
 
-            login_data = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
+            login_data = await self.login_with_retry(http_client=http_client, tg_web_data=self.tg_web_data)
             if not login_data:
                 add_log(f"{self.session_name} | Login failed during refresh")
                 return False
@@ -748,13 +754,31 @@ class Tapper:
             add_log(f"{self.session_name} | Error during account refresh: {error}")
             return False
 
+    async def check_connection(self, http_client: aiohttp.ClientSession):
+        try:
+            response = await http_client.get('http://1.1.1.1', timeout=aiohttp.ClientTimeout(total=10))
+            add_log(f"{self.session_name} | Connection check: Status {response.status}")
+            return response.status == 200
+        except Exception as e:
+            add_log(f"{self.session_name} | Connection check failed: {e}")
+            return False
+
     async def run(self, proxy: str | None) -> None:
         self.proxy = proxy
+        add_log(f"{self.session_name} | Starting with proxy: {proxy}")
         proxy_conn = ProxyConnector.from_url(proxy) if proxy else None
-
-        async with aiohttp.ClientSession(headers=headers, connector=proxy_conn) as http_client:
+        
+        timeout = aiohttp.ClientTimeout(total=30)  # Увеличиваем таймаут до 30 секунд
+        
+        async with aiohttp.ClientSession(headers=headers, connector=proxy_conn, timeout=timeout) as http_client:
+            add_log(f"{self.session_name} | Created aiohttp session")
             if proxy:
+                add_log(f"{self.session_name} | Checking proxy")
                 await self.check_proxy(http_client=http_client, proxy=proxy)
+            
+            if not await self.check_connection(http_client):
+                add_log(f"{self.session_name} | Failed to connect to qlyuker.io. Exiting.")
+                return
 
             add_log(f"{self.session_name} | Starting main bot loop.")
 
@@ -763,6 +787,7 @@ class Tapper:
                     add_log(f"{self.session_name} | Main loop iteration started.")
 
                     if not await self.refresh_account_data(http_client):
+                        add_log(f"{self.session_name} | Failed to refresh account data. Retrying in 60 seconds.")
                         await asyncio.sleep(60)
                         continue
 
@@ -802,6 +827,10 @@ class Tapper:
             with suppress(asyncio.CancelledError):
                 await asyncio.sleep(300)  # Обновляем каждые 5 минут
                 await self.refresh_account_data(http_client)
+
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(5))
+    async def login_with_retry(self, http_client: aiohttp.ClientSession, tg_web_data: str) -> dict:
+        return await self.login(http_client, tg_web_data)
 
 async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
     tappers = [Tapper(tg_client) for tg_client in tg_clients]
@@ -883,3 +912,4 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
 
 async def run_tapper(tg_client: Client, proxy: str | None):
     await run_tappers([tg_client], [proxy])
+

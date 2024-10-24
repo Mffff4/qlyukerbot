@@ -1,5 +1,5 @@
-type://user:pass@ip:port
-type://user:pass:ip:port
-type://ip:port:user:pass
-type://ip:port@user:pass
-type://ip:port
+socks5://91.229.112.40:8000:jMFUPS:rNucD7
+socks5://91.229.113.61:8000:jMFUPS:rNucD7
+socks5://185.202.2.245:8000:jMFUPS:rNucD7
+socks5://91.229.112.94:8000:jMFUPS:rNucD7
+socks5://185.202.1.90:8000:jMFUPS:rNucD7

@@ -1,7 +1,7 @@
 # Qlyuker Bot
 
 [![Bot Link](https://img.shields.io/badge/Telegram-Bot_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/qlyukerbot/start?startapp=bro-228618799)
-[![Channel Link](https://img.shields.io/badge/Telegram-Channel_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/+ap1Yd23CiuVkOTEy)
+[![Channel Link](https://img.shields.io/badge/Telegram-Channel_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/+dhoKHLCh5Bk3MWU6)
 
 ---
 
@@ -107,6 +107,7 @@
 | **ENABLE_RAFFLE**      | True                    | Flag to enable/disable participation in the raffle.                                                                                        |
 | **RAFFLE_BUY_INTERVAL**| 600                     | Interval between ticket purchases for the raffle (in seconds).                                                                             |
 | **RAFFLE_SESSIONS**    | []                      | List of sessions to participate in the raffle. An empty list means all sessions participate. Example: ["session1", "session2"]            |
+| **SLEEP_HOURS**       | []                       | List of two strings representing the start and end of the sleep period in "HH:MM" format. If the list is empty, the bot works 24/7.        |
 
 ---
 

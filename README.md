@@ -1,7 +1,7 @@
 # Qlyuker Bot
 
 [![Bot Link](https://img.shields.io/badge/Telegram-Бот_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/qlyukerbot/start?startapp=bro-228618799)
-[![Channel Link](https://img.shields.io/badge/Telegram-Канал_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/+ap1Yd23CiuVkOTEy)
+[![Channel Link](https://img.shields.io/badge/Telegram-Канал_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/+dhoKHLCh5Bk3MWU6)
 
 ---
 
@@ -108,6 +108,7 @@
 | **ENABLE_RAFFLE**      | True                    | Флаг включения/отключения функции участия в розыгрыше.                                                                                   |
 | **RAFFLE_BUY_INTERVAL** | 600                     | Интервал между покупками билетов для розыгрыша (в секундах).                                                                             |
 | **RAFFLE_SESSIONS**    | []                      | Список сессий для участия в розыгрыше. Пустой список означает участие всех сессий. Пример: ["session1", "session2"]                      |
+| **SLEEP_HOURS**        | []                      | Список из двух строк, представляющих начало и конец периода сна в формате "ЧЧ:ММ". Если список пустой, бот работает круглосуточно.      |
 
 ---
 
@@ -118,6 +119,22 @@
 1. `ENABLE_RAFFLE=True` - включает функцию участия в розыгрыше.
 2. `RAFFLE_BUY_INTERVAL=600` - устанавливает интервал между покупками билетов (в секундах).
 3. `RAFFLE_SESSIONS=["session1", "session2"]` - указывает конкретные сессии для участия в розыгрыше. Если оставить пустым `[]`, все сессии будут участвовать.
+
+---
+
+## 💤 Настройка периода сна
+
+Для настройки периода сна используйте параметр `SLEEP_HOURS` в файле `.env`:
+
+1. `SLEEP_HOURS=[]` - бот работает круглосуточно без перерывов.
+2. `SLEEP_HOURS=["22:00", "06:00"]` - бот "спит" с 22:00 до 06:00 по вашему локальному времени.
+
+Пример:
+```
+SLEEP_HOURS=["23:30", "07:45"]
+```
+
+Это установит период сна с 23:30 до 07:45. В это время бот будет неактивен.
 
 ---
 
