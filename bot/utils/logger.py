@@ -10,7 +10,6 @@ import asyncio
 console = Console()
 
 log_buffer = deque(maxlen=100) 
-log_update_event = asyncio.Event()
 
 class BufferedHandler(logging.Handler):
     def emit(self, record):
@@ -33,8 +32,7 @@ class BufferedHandler(logging.Handler):
         color = level_colors.get(record.levelname, "white")
         time_str = record.asctime.split()[1].split(',')[0] 
         formatted_entry = f"{emoji} {time_str} | [{color}]{record.message}[/]"
-        log_buffer.appendleft(formatted_entry)
-        log_update_event.set()
+        log_buffer.appendleft(formatted_entry) 
 
 logger = logging.getLogger("rich")
 logger.setLevel(logging.INFO)
@@ -51,8 +49,6 @@ logging.getLogger("pyrogram.session.session").setLevel(logging.WARNING)
 
 def add_log(message):
     log_buffer.appendleft(message)
-    log_update_event.set()
-
 def get_log_panel():
     log_text = Text("\n".join(list(log_buffer)))
     return Panel(log_text, title="Logs", border_style="yellow")

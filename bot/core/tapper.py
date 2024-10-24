@@ -4,7 +4,6 @@ from time import time
 from datetime import datetime, timezone, timedelta
 from random import randint
 from urllib.parse import unquote
-from contextlib import suppress
 
 import aiohttp
 from aiohttp_proxy import ProxyConnector
@@ -696,6 +695,7 @@ class Tapper:
                 self.raffle_total_tickets = data.get("ticketsTotal", self.raffle_total_tickets)
                 add_log(f"{self.session_name} | Bought {tickets_to_buy} raffle tickets. Total tickets: {self.raffle_tickets}. Next purchase in {settings.RAFFLE_BUY_INTERVAL} seconds.")
                 
+                # Обновляем данные в таблице
                 await update_left_panel()
             else:
                 add_log(f"{self.session_name} | Failed to buy raffle tickets. Status: {response.status}")
@@ -707,6 +707,7 @@ class Tapper:
             if not settings.RAFFLE_SESSIONS or self.session_name in settings.RAFFLE_SESSIONS:
                 await self.buy_raffle_tickets(http_client)
             
+            # Ждем указанный интервал перед следующей покупкой
             await asyncio.sleep(settings.RAFFLE_BUY_INTERVAL)
 
     async def get_status_panel(self):
@@ -793,28 +794,25 @@ class Tapper:
 
                     tasks = []
                     if settings.ENABLE_CLAIM_REWARDS:
-                        tasks.append(self.collect_daily_reward(http_client=http_client))
+                        tasks.append(asyncio.create_task(self.collect_daily_reward(http_client=http_client)))
                     if settings.ENABLE_TASKS:
-                        tasks.append(self.complete_tasks(http_client=http_client))
+                        tasks.append(asyncio.create_task(self.complete_tasks(http_client=http_client)))
                     if settings.ENABLE_UPGRADES:
-                        tasks.append(self.upgrade_loop(http_client=http_client))
+                        tasks.append(asyncio.create_task(self.upgrade_loop(http_client=http_client)))
                     if settings.ENABLE_TAPS:
-                        tasks.append(self.tap_loop(http_client=http_client))
+                        tasks.append(asyncio.create_task(self.tap_loop(http_client=http_client)))
                     if settings.ENABLE_RAFFLE:
-                        tasks.append(self.raffle_loop(http_client=http_client))
+                        tasks.append(asyncio.create_task(self.raffle_loop(http_client=http_client)))
 
-                    tasks.append(self.periodic_refresh(http_client))
+                    # Добавляем задачу для периодического обновления данных аккаунта
+                    tasks.append(asyncio.create_task(self.periodic_refresh(http_client)))
 
-                    await asyncio.gather(*tasks, return_exceptions=True)
+                    await asyncio.gather(*tasks)
 
                 except InvalidSession as error:
                     add_log(f"{self.session_name} | Invalid session: {error}")
                     self.current_energy = -1
                     raise error
-
-                except asyncio.CancelledError:
-                    add_log(f"{self.session_name} | Task was cancelled. Restarting...")
-                    continue
 
                 except Exception as error:
                     add_log(f"{self.session_name} | Unknown error: {error}")
@@ -825,7 +823,7 @@ class Tapper:
     async def periodic_refresh(self, http_client: aiohttp.ClientSession):
         while True:
             with suppress(asyncio.CancelledError):
-                await asyncio.sleep(300)  
+                await asyncio.sleep(300)
                 await self.refresh_account_data(http_client)
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(5))
@@ -878,36 +876,37 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
 
     async def update_layout():
         while True:
-            with suppress(asyncio.CancelledError):
-                console_width = console.width
-                if console_width < 120:
-                    layout.split_column(
-                        Layout(name="upper", ratio=1),
-                        Layout(name="lower", ratio=1)
-                    )
-                    layout["upper"].update(await update_left_panel())
-                    layout["lower"].update(get_log_panel())
-                else:
-                    layout.split_row(
-                        Layout(name="left", ratio=1),
-                        Layout(name="right", ratio=1)
-                    )
-                    layout["left"].update(await update_left_panel())
-                    layout["right"].update(get_log_panel())
-                
-                await asyncio.sleep(1)
+            console_width = console.width
+            if console_width < 120:
+                layout.split_column(
+                    Layout(name="upper", ratio=1),
+                    Layout(name="lower", ratio=1)
+                )
+                layout["upper"].update(await update_left_panel())
+                layout["lower"].update(get_log_panel())
+            else:
+                layout.split_row(
+                    Layout(name="left", ratio=1),
+                    Layout(name="right", ratio=1)
+                )
+                layout["left"].update(await update_left_panel())
+                layout["right"].update(get_log_panel())
+            
+            await asyncio.sleep(1)
 
     with Live(layout, console=console, refresh_per_second=1, screen=True):
         update_task = asyncio.create_task(update_layout())
         
         try:
-            await asyncio.gather(*[tapper.run(proxy) for tapper, proxy in zip(tappers, proxies)], return_exceptions=True)
+            await asyncio.gather(*[tapper.run(proxy) for tapper, proxy in zip(tappers, proxies)])
         except asyncio.CancelledError:
-            add_log("Main task was cancelled. Shutting down...")
+            pass
         finally:
             update_task.cancel()
-            with suppress(asyncio.CancelledError):
+            try:
                 await update_task
+            except asyncio.CancelledError:
+                pass
 
 async def run_tapper(tg_client: Client, proxy: str | None):
     await run_tappers([tg_client], [proxy])
