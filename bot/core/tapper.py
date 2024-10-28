@@ -463,6 +463,14 @@ class Tapper:
             add_log(f"{self.session_name} | Proxy: {proxy} | Error: {error}")
 
     async def prioritize_upgrades(self, user_data: dict) -> list:
+        # Проверяем текущий доход в час
+        current_hourly_income = (self.mine_per_sec + self.energy_per_sec) * 3600
+        
+        # Если установлен лимит и текущий доход превышает его - пропускаем улучшения
+        if settings.MAX_INCOME_PER_HOUR > 0 and current_hourly_income >= settings.MAX_INCOME_PER_HOUR:
+            add_log(f"{self.session_name} | Hourly income ({format_number(current_hourly_income)}) reached or exceeded limit ({format_number(settings.MAX_INCOME_PER_HOUR)}). Skipping upgrades.")
+            return []
+
         available_upgrades = [
             u for u in self.upgrades.values()
             if not u.get('maxLevel', False)

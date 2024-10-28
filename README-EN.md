@@ -108,6 +108,7 @@
 | **RAFFLE_BUY_INTERVAL**| 600                     | Interval between ticket purchases for the raffle (in seconds).                                                                             |
 | **RAFFLE_SESSIONS**    | []                      | List of sessions to participate in the raffle. An empty list means all sessions participate. Example: ["session1", "session2"]            |
 | **SLEEP_HOURS**       | []                       | List of two strings representing the start and end of the sleep period in "HH:MM" format. If the list is empty, the bot works 24/7.        |
+| **MAX_INCOME_PER_HOUR**| 0                       | Maximum income per hour limit after which upgrades stop. Value of 0 means no limit. Example: 1000000 will stop upgrades after reaching 1M/hour |
 
 ---
 
@@ -136,3 +137,4 @@ Support the development using cryptocurrencies or platforms:
 
 If you have any questions or suggestions:
 - **Telegram**: [Join our channel](https://t.me/+ap1Yd23CiuVkOTEy)
+
