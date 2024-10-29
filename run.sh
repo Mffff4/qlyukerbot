@@ -125,3 +125,4 @@ echo "Starting the bot..."
 "$VENV_PYTHON" main.py || error "Failed to start the bot."
 
 echo "Bot execution completed."
+
