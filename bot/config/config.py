@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     ENABLE_UPGRADES: bool = True
     ENABLE_TASKS: bool = True
 
-    ENABLE_RAFFLE: bool = True
+    ENABLE_RAFFLE: bool = False
     RAFFLE_BUY_INTERVAL: int = 600
     RAFFLE_SESSIONS: list[str] = []
 

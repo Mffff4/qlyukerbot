@@ -466,7 +466,7 @@ class Tapper:
         # Проверяем текущий доход в час
         current_hourly_income = (self.mine_per_sec + self.energy_per_sec) * 3600
         
-        # Если установлен лимит и текущий доход превышает его - пропускаем улучшения
+        # Если установлен лимит и текущий ��оход превышает его - пропускаем улучшения
         if settings.MAX_INCOME_PER_HOUR > 0 and current_hourly_income >= settings.MAX_INCOME_PER_HOUR:
             add_log(f"{self.session_name} | Hourly income ({format_number(current_hourly_income)}) reached or exceeded limit ({format_number(settings.MAX_INCOME_PER_HOUR)}). Skipping upgrades.")
             return []
@@ -822,8 +822,12 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
         table.add_column("Coins", justify="right", style="green")
         table.add_column("Energy", justify="right", style="yellow")
         table.add_column("Mine/h", justify="right", style="magenta")
-        table.add_column("Tickets", justify="right", style="blue")
-        table.add_column("Win Chance", justify="right", style="purple")
+        
+        # Добавляем колонки для розыгрыша только если он включен
+        if settings.ENABLE_RAFFLE:
+            table.add_column("Tickets", justify="right", style="blue")
+            table.add_column("Win Chance", justify="right", style="purple")
+        
         table.add_column("Status", justify="center", style="red")
 
         # Сортируем tappers по имени сессии
@@ -843,16 +847,23 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
                 status_emoji = Emoji("red_circle")
                 status_color = "red"
             
-            win_chance = (tapper.raffle_tickets / tapper.raffle_total_tickets) * tapper.raffle_prizes_count if tapper.raffle_total_tickets > 0 else 0
-            table.add_row(
+            row_data = [
                 tapper.session_name,
                 format_number(tapper.current_coins),
                 f"{max(tapper.current_energy, 0)}/{tapper.max_energy}",
                 format_number(tapper.mine_per_sec * 3600),
-                str(tapper.raffle_tickets), 
-                f"{win_chance:.4%}",
-                f"[{status_color}]{status_emoji}[/]"
-            )
+            ]
+
+            # Добавляем данные о розыгрыше только если он включен
+            if settings.ENABLE_RAFFLE:
+                win_chance = (tapper.raffle_tickets / tapper.raffle_total_tickets) * tapper.raffle_prizes_count if tapper.raffle_total_tickets > 0 else 0
+                row_data.extend([
+                    str(tapper.raffle_tickets),
+                    f"{win_chance:.4%}"
+                ])
+
+            row_data.append(f"[{status_color}]{status_emoji}[/]")
+            table.add_row(*row_data)
 
         return Panel(table, title="Sessions Overview", border_style="green")
 
