@@ -2,7 +2,7 @@
 
 [![Bot Link](https://img.shields.io/badge/Telegram-Бот_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/qlyukerbot/start?startapp=bro-228618799)
 [![Channel Link](https://img.shields.io/badge/Telegram-Канал_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/+Ayp1HeUYsjdmZjgy)
-
+[![DMCA.com Protection Status](https://images.dmca.com/Badges/dmca-badge-w150-5x1-07.png?ID=845698a8-63c8-4c0a-94a1-73f5ec78bff8)](https://www.dmca.com/Protection/Status.aspx?ID=845698a8-63c8-4c0a-94a1-73f5ec78bff8)
 ---
 
 ## 📑 Оглавление
