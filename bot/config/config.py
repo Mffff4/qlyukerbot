@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import validator
+from typing import Dict
 
 
 class Settings(BaseSettings):
@@ -33,11 +34,13 @@ class Settings(BaseSettings):
 
     MAX_INCOME_PER_HOUR: float = 0
 
-    RESERVED_BALANCE: str = ""
+    RESERVED_BALANCE: Dict[str, float] = {}
 
     @validator('RESERVED_BALANCE', pre=True)
-    def parse_reserved_balance(cls, v) -> dict[str, float]:
-        if not v:
+    def parse_reserved_balance(cls, v) -> Dict[str, float]:
+        if isinstance(v, dict):
+            return v
+        if not v or not isinstance(v, str):
             return {}
         
         try:
