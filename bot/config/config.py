@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import validator
 from typing import Dict
+import re
 
 
 class Settings(BaseSettings):
@@ -45,11 +46,10 @@ class Settings(BaseSettings):
         
         try:
             balance_dict = {}
-            pairs = v.split(',')
-            for pair in pairs:
-                if ':' in pair:
-                    session, amount = pair.split(':')
-                    balance_dict[session.strip()] = float(amount.strip())
+            # Ищем все пары в формате [session:amount]
+            pairs = re.findall(r'\[(.*?):(.*?)\]', v)
+            for session, amount in pairs:
+                balance_dict[session.strip()] = float(amount.strip())
             return balance_dict
         except Exception as e:
             print(f"Error parsing RESERVED_BALANCE: {e}")
