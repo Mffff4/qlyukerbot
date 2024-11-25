@@ -92,6 +92,7 @@
 | **USE_PROXY_FROM_FILE**| False                    | Flag indicating whether to use proxy from bot/config/proxies.txt file.                                                                       |
 | **REF_ID**            | "bro-228618799"          | Referral argument used in links to track referrals.                                                                                          |
 | **TAPS**              | [10, 100]                | List of values determining the number of taps per cycle.                                                                                     |
+| **RESERVED_BALANCE**   | session1:1000000,session2:500000  | Dictionary containing sessions and their unburnable balances.                                                                         |
 | **SLEEP_BETWEEN_TAPS** | [1, 3]                   | List of values determining the delay between taps.                                                                                           |
 | **ENERGY_THRESHOLD**   | 0.05                     | Energy threshold at which actions start.                                                                                                     |
 | **SLEEP_ON_LOW_ENERGY**| 900                      | Waiting time at low energy level. Value in seconds.                                                                                          |

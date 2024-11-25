@@ -32,6 +32,25 @@ class Settings(BaseSettings):
 
     MAX_INCOME_PER_HOUR: float = 0
 
+    RESERVED_BALANCE: dict[str, float] = {}
+
+    @validator('RESERVED_BALANCE', pre=True)
+    def parse_reserved_balance(cls, v):
+        if not v:
+            return {}
+        
+        try:
+            balance_dict = {}
+            pairs = v.split(',')
+            for pair in pairs:
+                if ':' in pair:
+                    session, amount = pair.split(':')
+                    balance_dict[session.strip()] = float(amount.strip())
+            return balance_dict
+        except Exception as e:
+            print(f"Error parsing RESERVED_BALANCE: {e}")
+            return {}
+
     @property
     def MIN_TAPS(self):
         return self.TAPS[0]

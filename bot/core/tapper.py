@@ -77,6 +77,7 @@ class Tapper:
         self.raffle_tickets = 0
         self.raffle_total_tickets = 0
         self.raffle_prizes_count = 0
+        self.reserved_balance = settings.RESERVED_BALANCE.get(self.session_name, 0.0)
 
     async def get_tg_web_data(self, proxy: str | None) -> str:
         async with self.client_lock:
@@ -463,12 +464,15 @@ class Tapper:
             add_log(f"{self.session_name} | Proxy: {proxy} | Error: {error}")
 
     async def prioritize_upgrades(self, user_data: dict) -> list:
-        # Проверяем текущий доход в час
         current_hourly_income = (self.mine_per_sec + self.energy_per_sec) * 3600
         
-        # Если установлен лимит и текущий ��оход превышает его - пропускаем улучшения
         if settings.MAX_INCOME_PER_HOUR > 0 and current_hourly_income >= settings.MAX_INCOME_PER_HOUR:
             add_log(f"{self.session_name} | Hourly income ({format_number(current_hourly_income)}) reached or exceeded limit ({format_number(settings.MAX_INCOME_PER_HOUR)}). Skipping upgrades.")
+            return []
+
+        available_balance = self.current_coins - self.reserved_balance
+        if available_balance <= 0:
+            add_log(f"{self.session_name} | Current balance ({format_number(self.current_coins)}) is below or equal to reserved balance ({format_number(self.reserved_balance)}). Skipping upgrades.")
             return []
 
         available_upgrades = [
@@ -485,6 +489,10 @@ class Tapper:
 
             increment = next_info.get('increment', 0)
             price = next_info.get('price', float('inf'))
+            
+            if price > available_balance:
+                continue
+
             if price == 0:
                 efficiency = float('inf')
                 time_to_accumulate = 0
@@ -808,7 +816,7 @@ class Tapper:
     async def periodic_refresh(self, http_client: aiohttp.ClientSession):
         while True:
             with suppress(asyncio.CancelledError):
-                await asyncio.sleep(300)  # Обновляем каждые 5 минут
+                await asyncio.sleep(300)
                 await self.refresh_account_data(http_client)
 
 async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
@@ -823,14 +831,12 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
         table.add_column("Energy", justify="right", style="yellow")
         table.add_column("Mine/h", justify="right", style="magenta")
         
-        # Добавляем колонки для розыгрыша только если он включен
         if settings.ENABLE_RAFFLE:
             table.add_column("Tickets", justify="right", style="blue")
             table.add_column("Win Chance", justify="right", style="purple")
         
         table.add_column("Status", justify="center", style="red")
 
-        # Сортируем tappers по имени сессии
         sorted_tappers = sorted(tappers, key=lambda x: x.session_name)
 
         for tapper in sorted_tappers:
@@ -854,7 +860,6 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
                 format_number(tapper.mine_per_sec * 3600),
             ]
 
-            # Добавляем данные о розыгрыше только если он включен
             if settings.ENABLE_RAFFLE:
                 win_chance = (tapper.raffle_tickets / tapper.raffle_total_tickets) * tapper.raffle_prizes_count if tapper.raffle_total_tickets > 0 else 0
                 row_data.extend([
