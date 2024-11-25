@@ -1,11 +1,11 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import validator
+from pydantic import validator, field_validator
 from typing import Dict
 import re
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding='utf-8', extra='ignore')
 
     API_ID: int
     API_HASH: str
@@ -35,20 +35,18 @@ class Settings(BaseSettings):
 
     MAX_INCOME_PER_HOUR: float = 0
 
-    RESERVED_BALANCE: Dict[str, float] = {}
+    RESERVED_BALANCE: str = ""
 
-    @validator('RESERVED_BALANCE', pre=True)
-    def parse_reserved_balance(cls, v) -> Dict[str, float]:
-        if isinstance(v, dict):
-            return v
-        if not v or not isinstance(v, str):
+    @field_validator('RESERVED_BALANCE')
+    @classmethod
+    def parse_reserved_balance(cls, v: str) -> Dict[str, float]:
+        if not v:
             return {}
         
         try:
             balance_dict = {}
-            # Ищем все пары в формате [session:amount]
-            pairs = re.findall(r'\[(.*?):(.*?)\]', v)
-            for session, amount in pairs:
+            matches = re.findall(r'\[(.*?):(.*?)\]', v)
+            for session, amount in matches:
                 balance_dict[session.strip()] = float(amount.strip())
             return balance_dict
         except Exception as e:
