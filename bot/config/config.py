@@ -33,10 +33,10 @@ class Settings(BaseSettings):
 
     MAX_INCOME_PER_HOUR: float = 0
 
-    RESERVED_BALANCE: dict[str, float] = {}
+    RESERVED_BALANCE: str = ""
 
     @validator('RESERVED_BALANCE', pre=True)
-    def parse_reserved_balance(cls, v):
+    def parse_reserved_balance(cls, v) -> dict[str, float]:
         if not v:
             return {}
         
