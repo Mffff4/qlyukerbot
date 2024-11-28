@@ -146,7 +146,7 @@ class Tapper:
 
     async def login(self, http_client: aiohttp.ClientSession, tg_web_data: str) -> dict:
         try:
-            http_client.headers['Onboarding'] = '0'
+            http_client.headers['Onboarding'] = str(self.onboarding)
             json_data = {"startData": tg_web_data}
             response = await http_client.post(
                 url='https://qlyuker.io/api/auth/start',
@@ -157,7 +157,7 @@ class Tapper:
                 add_log(f"{self.session_name} | login FAILED: Status={response.status}, Response={response_text}")
                 response.raise_for_status()
             response_json = await response.json()
-            http_client.headers['Onboarding'] = '2'
+            http_client.headers['Onboarding'] = str(self.onboarding)
             await self.process_auth_data(response_json)
             add_log(f"{self.session_name} | Successfully logged in.")
             for cookie in http_client.cookie_jar:
@@ -182,7 +182,14 @@ class Tapper:
         upgrades = data.get("upgrades", [])
         shared_config = data.get("sharedConfig", {})
         self.upgrade_delay = shared_config.get("upgradeDelay", {})
+        
         self.onboarding = user.get("onboarding", self.onboarding)
+        
+        hourly_income = (user.get("minePerSec", 0) + user.get("energyPerSec", 0)) * 3600
+        
+        if hourly_income == 0:
+            self.onboarding = 0
+            add_log(f"{self.session_name} | New account detected (zero income). Setting onboarding=0")
         
         for upgrade in upgrades:
             upgrade_id = upgrade.get('id')
