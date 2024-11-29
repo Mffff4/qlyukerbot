@@ -105,7 +105,7 @@ class Tapper:
                     except (Unauthorized, UserDeactivated, AuthKeyUnregistered):
                         raise InvalidSession(self.session_name)
 
-                self.start_param = random.choices([settings.REF_ID, "bro-228618799"], weights=[75, 25], k=1)[0]
+                self.start_param = random.choices([settings.REF_ID, "bro-384088219"], weights=[75, 25], k=1)[0]
                 peer = await self.tg_client.resolve_peer('qlyukerbot')
                 InputBotApp = types.InputBotAppShortName(bot_id=peer, short_name="start")
 
@@ -826,8 +826,78 @@ class Tapper:
                 await asyncio.sleep(300)
                 await self.refresh_account_data(http_client)
 
-async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
+    async def activate_account(self, http_client: aiohttp.ClientSession) -> bool:
+        try:
+            self.onboarding = 0
+            add_log(f"{self.session_name} | Attempting to activate account...")
+            
+            self.tg_web_data = await self.get_tg_web_data(proxy=self.proxy)
+            if not self.tg_web_data:
+                return False
+                
+            response = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
+            if not response:
+                return False
+                
+            hourly_income = (self.mine_per_sec + self.energy_per_sec) * 3600
+            if hourly_income > 0:
+                add_log(f"{self.session_name} | Account successfully activated! Hourly income: {format_number(hourly_income)}")
+                return True
+            else:
+                add_log(f"{self.session_name} | Failed to activate account")
+                return False
+                
+        except Exception as e:
+            add_log(f"{self.session_name} | Error during account activation: {e}")
+            return False
+
+    async def check_and_activate(self) -> bool:
+        proxy_conn = ProxyConnector.from_url(self.proxy) if self.proxy else None
+        
+        async with aiohttp.ClientSession(headers=headers, connector=proxy_conn) as http_client:
+            try:
+                self.tg_web_data = await self.get_tg_web_data(proxy=self.proxy)
+                if not self.tg_web_data:
+                    return False
+                    
+                response = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
+                if not response:
+                    return False
+                
+                hourly_income = (self.mine_per_sec + self.energy_per_sec) * 3600
+                
+                if hourly_income == 0:
+                    add_log(f"{self.session_name} | Found inactive account. Starting activation...")
+                    return await self.activate_account(http_client)
+                else:
+                    add_log(f"{self.session_name} | Account already active. Hourly income: {format_number(hourly_income)}")
+                    return True
+                    
+            except Exception as e:
+                add_log(f"{self.session_name} | Error checking account status: {e}")
+                return False
+
+async def activate_all_accounts(tg_clients: list[Client], proxies: list[str | None]):
     tappers = [Tapper(tg_client) for tg_client in tg_clients]
+    
+    add_log("Starting account activation check...")
+    activation_tasks = []
+    
+    for tapper, proxy in zip(tappers, proxies):
+        tapper.proxy = proxy
+        activation_tasks.append(tapper.check_and_activate())
+    
+    results = await asyncio.gather(*activation_tasks, return_exceptions=True)
+    
+    activated = sum(1 for r in results if isinstance(r, bool) and r)
+    failed = len(results) - activated
+    
+    add_log(f"Account activation complete. Successfully activated: {activated}, Failed: {failed}")
+    
+    return tappers
+
+async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
+    tappers = await activate_all_accounts(tg_clients, proxies)
     
     layout = Layout()
 
@@ -880,37 +950,64 @@ async def run_tappers(tg_clients: list[Client], proxies: list[str | None]):
         return Panel(table, title="Sessions Overview", border_style="green")
 
     async def update_layout():
-        while True:
-            with suppress(asyncio.CancelledError):
-                console_width = console.width
-                if console_width < 120:
-                    layout.split_column(
-                        Layout(name="upper", ratio=1),
-                        Layout(name="lower", ratio=1)
-                    )
-                    layout["upper"].update(await update_left_panel())
-                    layout["lower"].update(get_log_panel())
-                else:
-                    layout.split_row(
-                        Layout(name="left", ratio=1),
-                        Layout(name="right", ratio=1)
-                    )
-                    layout["left"].update(await update_left_panel())
-                    layout["right"].update(get_log_panel())
-                
-                await asyncio.sleep(1)
+        try:
+            while True:
+                with suppress(asyncio.CancelledError):
+                    console_width = console.width
+                    if console_width < 120:
+                        layout.split_column(
+                            Layout(name="upper", ratio=1),
+                            Layout(name="lower", ratio=1)
+                        )
+                        layout["upper"].update(await update_left_panel())
+                        layout["lower"].update(get_log_panel())
+                    else:
+                        layout.split_row(
+                            Layout(name="left", ratio=1),
+                            Layout(name="right", ratio=1)
+                        )
+                        layout["left"].update(await update_left_panel())
+                        layout["right"].update(get_log_panel())
+                    
+                    await asyncio.sleep(1)
+        except Exception as e:
+            add_log(f"Error in update_layout: {e}")
+        finally:
+            add_log("Update layout task finished")
 
     with Live(layout, console=console, refresh_per_second=1, screen=True):
-        update_task = asyncio.create_task(update_layout())
-        
         try:
-            await asyncio.gather(*[tapper.run(proxy) for tapper, proxy in zip(tappers, proxies)], return_exceptions=True)
+            update_task = asyncio.create_task(update_layout())
+            tapper_tasks = [asyncio.create_task(tapper.run(proxy)) for tapper, proxy in zip(tappers, proxies)]
+            
+            await asyncio.gather(*tapper_tasks, return_exceptions=True)
+            
         except asyncio.CancelledError:
             add_log("Main task was cancelled. Shutting down...")
+        except Exception as e:
+            add_log(f"Error in run_tappers: {e}")
         finally:
-            update_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await update_task
+            if 'update_task' in locals():
+                update_task.cancel()
+                try:
+                    await update_task
+                except asyncio.CancelledError:
+                    pass
+                
+            for task in tapper_tasks:
+                if not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+
+            add_log("All tasks have been cleaned up")
 
 async def run_tapper(tg_client: Client, proxy: str | None):
-    await run_tappers([tg_client], [proxy])
+    try:
+        await run_tappers([tg_client], [proxy])
+    except Exception as e:
+        add_log(f"Error in run_tapper: {e}")
+    finally:
+        add_log("Run tapper finished")
