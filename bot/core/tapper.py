@@ -188,8 +188,9 @@ class Tapper:
         hourly_income = (user.get("minePerSec", 0) + user.get("energyPerSec", 0)) * 3600
         
         if hourly_income == 0:
-            self.onboarding = 1
+            self.onboarding = 0
             add_log(f"{self.session_name} | New account detected (zero income). Setting onboarding=0")
+            await self.activate_account(http_client)
         
         for upgrade in upgrades:
             upgrade_id = upgrade.get('id')
@@ -829,23 +830,27 @@ class Tapper:
     async def activate_account(self, http_client: aiohttp.ClientSession) -> bool:
         try:
             self.onboarding = 0
-            add_log(f"{self.session_name} | Attempting to activate account...")
+            add_log(f"{self.session_name} | Attempting to activate account with onboarding=0...")
             
-            self.tg_web_data = await self.get_tg_web_data(proxy=self.proxy)
-            if not self.tg_web_data:
-                return False
+            for attempt in range(3):
+                self.tg_web_data = await self.get_tg_web_data(proxy=self.proxy)
+                if not self.tg_web_data:
+                    continue
                 
-            response = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
-            if not response:
-                return False
+                response = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
+                if not response:
+                    continue
                 
-            hourly_income = (self.mine_per_sec + self.energy_per_sec) * 3600
-            if hourly_income > 0:
-                add_log(f"{self.session_name} | Account successfully activated! Hourly income: {format_number(hourly_income)}")
-                return True
-            else:
-                add_log(f"{self.session_name} | Failed to activate account")
-                return False
+                hourly_income = (self.mine_per_sec + self.energy_per_sec) * 3600
+                if hourly_income > 0:
+                    add_log(f"{self.session_name} | Account successfully activated! Hourly income: {format_number(hourly_income)}")
+                    return True
+                
+                add_log(f"{self.session_name} | Activation attempt {attempt + 1} failed. Retrying...")
+                await asyncio.sleep(2)
+            
+            add_log(f"{self.session_name} | Failed to activate account after 3 attempts")
+            return False
                 
         except Exception as e:
             add_log(f"{self.session_name} | Error during account activation: {e}")
