@@ -183,14 +183,14 @@ class Tapper:
         shared_config = data.get("sharedConfig", {})
         self.upgrade_delay = shared_config.get("upgradeDelay", {})
         
-        self.onboarding = user.get("onboarding", self.onboarding)
-        
         hourly_income = (user.get("minePerSec", 0) + user.get("energyPerSec", 0)) * 3600
+        current_onboarding = user.get("onboarding", 0)
         
-        if hourly_income == 0:
-            self.onboarding = 0
-            add_log(f"{self.session_name} | New account detected (zero income). Setting onboarding=0")
-            await self.activate_account(http_client)
+        if hourly_income == 0 and current_onboarding < 2:
+            self.onboarding = 2
+            add_log(f"{self.session_name} | New account detected. Setting onboarding=2 for activation")
+        else:
+            self.onboarding = current_onboarding
         
         for upgrade in upgrades:
             upgrade_id = upgrade.get('id')
@@ -829,27 +829,41 @@ class Tapper:
 
     async def activate_account(self, http_client: aiohttp.ClientSession) -> bool:
         try:
-            self.onboarding = 0
-            add_log(f"{self.session_name} | Attempting to activate account with onboarding=0...")
+            self.onboarding = 2
+            add_log(f"{self.session_name} | Attempting to activate account with onboarding=2...")
             
-            for attempt in range(3):
+            for attempt in range(5):
+                http_client.headers['Onboarding'] = '2'
+                
                 self.tg_web_data = await self.get_tg_web_data(proxy=self.proxy)
                 if not self.tg_web_data:
+                    await asyncio.sleep(2)
                     continue
                 
-                response = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
-                if not response:
-                    continue
-                
-                hourly_income = (self.mine_per_sec + self.energy_per_sec) * 3600
-                if hourly_income > 0:
-                    add_log(f"{self.session_name} | Account successfully activated! Hourly income: {format_number(hourly_income)}")
-                    return True
-                
-                add_log(f"{self.session_name} | Activation attempt {attempt + 1} failed. Retrying...")
-                await asyncio.sleep(2)
+                json_data = {"startData": self.tg_web_data}
+                try:
+                    response = await http_client.post(
+                        url='https://qlyuker.io/api/auth/start',
+                        json=json_data
+                    )
+                    response_json = await response.json()
+                    
+                    hourly_income = (response_json.get('user', {}).get('minePerSec', 0) + 
+                                   response_json.get('user', {}).get('energyPerSec', 0)) * 3600
+                    
+                    if hourly_income > 0:
+                        add_log(f"{self.session_name} | Account successfully activated! Hourly income: {format_number(hourly_income)}")
+                        await self.process_auth_data(response_json)
+                        return True
+                    
+                    add_log(f"{self.session_name} | Activation attempt {attempt + 1} failed. Income still zero. Retrying...")
+                    await asyncio.sleep(3)
+                    
+                except Exception as e:
+                    add_log(f"{self.session_name} | Error during activation attempt {attempt + 1}: {e}")
+                    await asyncio.sleep(3)
             
-            add_log(f"{self.session_name} | Failed to activate account after 3 attempts")
+            add_log(f"{self.session_name} | Failed to activate account after 5 attempts")
             return False
                 
         except Exception as e:
@@ -865,6 +879,9 @@ class Tapper:
                 if not self.tg_web_data:
                     return False
                     
+                self.onboarding = 0
+                http_client.headers['Onboarding'] = '0'
+                
                 response = await self.login(http_client=http_client, tg_web_data=self.tg_web_data)
                 if not response:
                     return False
