@@ -188,7 +188,7 @@ class Tapper:
         hourly_income = (user.get("minePerSec", 0) + user.get("energyPerSec", 0)) * 3600
         
         if hourly_income == 0:
-            self.onboarding = 0
+            self.onboarding = 1
             add_log(f"{self.session_name} | New account detected (zero income). Setting onboarding=0")
         
         for upgrade in upgrades:
