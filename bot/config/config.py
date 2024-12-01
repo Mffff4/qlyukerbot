@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import validator, field_validator
-from typing import Dict
+from typing import Dict, List
 import re
 
 
@@ -13,12 +13,12 @@ class Settings(BaseSettings):
     USE_PROXY_FROM_FILE: bool = False
     REF_ID: str = "bro-384088219"
 
-    TAPS: list = [10, 100] 
-    SLEEP_BETWEEN_TAPS: list = [1, 3] 
+    TAPS: List[int] = [10, 100]
+    SLEEP_BETWEEN_TAPS: List[int] = [1, 3]
     ENERGY_THRESHOLD: float = 0.05
-    SLEEP_ON_LOW_ENERGY: int = 60 * 15
+    SLEEP_ON_LOW_ENERGY: int = 900
     SLEEP_AFTER_UPGRADE: int = 1
-    DELAY_BETWEEN_TASKS: list = [3, 15]
+    DELAY_BETWEEN_TASKS: List[int] = [3, 15]
 
     UPGRADE_CHECK_DELAY: int = 60
     RETRY_DELAY: int = 3
@@ -31,9 +31,9 @@ class Settings(BaseSettings):
 
     ENABLE_RAFFLE: bool = False
     RAFFLE_BUY_INTERVAL: int = 600
-    RAFFLE_SESSIONS: list[str] = []
+    RAFFLE_SESSIONS: List[str] = []
 
-    MAX_INCOME_PER_HOUR: float = 0
+    MAX_INCOME_PER_HOUR: float = 0.0
 
     RESERVED_BALANCE: str = ""
 
