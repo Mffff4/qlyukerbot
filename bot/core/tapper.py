@@ -233,16 +233,21 @@ class Tapper:
             if not (upgrade_id.startswith('restoreEnergy') or upgrade_id.startswith('promo') or upgrade_id.startswith('u')):
                 self.last_restore_energy_purchase_time.setdefault(upgrade_id, None)
 
-        raffles = user.get("raffles", [])
+        raffles = data.get("raffles", [])
         if raffles:
-            self.raffle_id = raffles[0].get("id")
-            self.raffle_tickets = raffles[0].get("ticketsCount", 0)  
+            sorted_raffles = sorted(raffles, key=lambda x: x.get("createdAt", ""), reverse=True)
+            if sorted_raffles:
+                self.raffle_id = sorted_raffles[0].get("id")
+                self.raffle_tickets = sorted_raffles[0].get("ticketsCount", 0)
+                add_log(f"{self.session_name} | Selected latest raffle ID: {self.raffle_id}")
 
         raffle_info = data.get("raffles", [])
         if raffle_info:
-            self.raffle_total_tickets = raffle_info[0].get("ticketsCount", 0)
-            stages = raffle_info[0].get("stages", [])
-            self.raffle_prizes_count = sum(sum(prize["count"] for prize in stage["prizes"]) for stage in stages)
+            current_raffle = next((r for r in raffle_info if r.get("id") == self.raffle_id), None)
+            if current_raffle:
+                self.raffle_total_tickets = current_raffle.get("ticketsCount", 0)
+                stages = current_raffle.get("stages", [])
+                self.raffle_prizes_count = sum(sum(prize["count"] for prize in stage["prizes"]) for stage in stages)
 
     async def parse_upgraded_at(self, upgraded_at):
         try:
@@ -697,27 +702,39 @@ class Tapper:
             add_log(f"{self.session_name} | No active raffle found.")
             return
 
-        tickets_to_buy = self.current_coins // 50000 
+        available_balance = self.current_coins - self.reserved_balance
+        if available_balance < 50000:
+            add_log(f"{self.session_name} | Not enough coins for raffle tickets (available: {available_balance}).")
+            return
+
+        tickets_to_buy = available_balance // 50000
         if tickets_to_buy == 0:
-            add_log(f"{self.session_name} | Not enough coins to buy raffle tickets.")
             return
 
         try:
+            http_client.headers['Referer'] = 'https://qlyuker.io/shop'
             json_data = {"raffleId": self.raffle_id, "ticketsCount": tickets_to_buy}
+            
             response = await http_client.post(
                 url='https://qlyuker.io/api/raffles/buy',
                 json=json_data
             )
+            
             if response.status == 200:
                 data = await response.json()
                 self.current_coins = data.get("currentCoins", self.current_coins)
                 self.raffle_tickets = data.get("ticketsCount", self.raffle_tickets)
                 self.raffle_total_tickets = data.get("ticketsTotal", self.raffle_total_tickets)
-                add_log(f"{self.session_name} | Bought {tickets_to_buy} raffle tickets. Total tickets: {self.raffle_tickets}. Next purchase in {settings.RAFFLE_BUY_INTERVAL} seconds.")
                 
-                await update_left_panel()
+                add_log(
+                    f"{self.session_name} | Bought {tickets_to_buy} raffle tickets for {tickets_to_buy * 50000} coins. "
+                    f"Total tickets: {self.raffle_tickets}. Win chance: "
+                    f"{(self.raffle_tickets / self.raffle_total_tickets) * self.raffle_prizes_count:.4%} "
+                    f"Next purchase in {settings.RAFFLE_BUY_INTERVAL} seconds."
+                )
             else:
-                add_log(f"{self.session_name} | Failed to buy raffle tickets. Status: {response.status}")
+                response_text = await response.text()
+                add_log(f"{self.session_name} | Failed to buy raffle tickets. Status: {response.status}, Response: {response_text}")
         except Exception as e:
             add_log(f"{self.session_name} | Error buying raffle tickets: {e}")
 
