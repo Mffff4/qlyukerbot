@@ -182,23 +182,25 @@ async def run_tasks(tg_clients: list[Client], proxies: list[str | None]):
                 await asyncio.sleep(delay)
                 await run_tappers([client], [proxy])
                 
-            tasks.append(delayed_start(client, proxy, delay))
+            task = asyncio.create_task(delayed_start(client, proxy, delay))
+            tasks.append(task)
         
         if update_task:
-            await asyncio.gather(
-                update_task,
-                *tasks
-            )
-        else:
-            await asyncio.gather(*tasks)
+            tasks.append(update_task)
+            
+        await asyncio.gather(*tasks, return_exceptions=True)
             
     except asyncio.CancelledError:
-        if update_task:
+        for task in tasks:
+            task.cancel()
+        if update_task and not update_task.done():
             update_task.cancel()
         raise
     except Exception as e:
         logger.error(f"Error in run_tasks: {str(e)}")
-        if update_task:
+        for task in tasks:
+            task.cancel()
+        if update_task and not update_task.done():
             update_task.cancel()
         raise
 
