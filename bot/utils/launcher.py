@@ -173,20 +173,8 @@ async def run_tasks(tg_clients: list[Client], proxies: list[str | None]):
         update_task = None
         
     try:
-        # Создаем один общий список клиентов и прокси
-        all_clients = []
-        all_proxies = []
-        
-        for client, proxy in zip(tg_clients, proxies):
-            delay = random.uniform(0, 60)
-            logger.info(f"{client.name} | Will start in {delay:.1f} seconds")
-            await asyncio.sleep(delay)
-            
-            all_clients.append(client)
-            all_proxies.append(proxy)
-        
         # Запускаем всех клиентов в одном run_tappers
-        tapper_task = asyncio.create_task(run_tappers(all_clients, all_proxies))
+        tapper_task = asyncio.create_task(run_tappers(tg_clients, proxies))
         
         tasks = [tapper_task]
         if update_task:
