@@ -1,7 +1,7 @@
 # Qlyuker Bot
 
 [![Bot Link](https://img.shields.io/badge/Telegram-Bot_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/qlyukerbot/start?startapp=bro-228618799)
-[![Channel Link](https://img.shields.io/badge/Telegram-Channel_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/+Ayp1HeUYsjdmZjgy)
+[![Channel Link](https://img.shields.io/badge/Telegram-Channel_Link-blue?style=for-the-badge&logo=Telegram&logoColor=white)](https://t.me/+uF4lQD9ZEUE4NGUy)
 [![DMCA.com Protection Status](https://images.dmca.com/Badges/dmca-badge-w150-5x1-07.png?ID=845698a8-63c8-4c0a-94a1-73f5ec78bff8)](https://www.dmca.com/Protection/Status.aspx?ID=845698a8-63c8-4c0a-94a1-73f5ec78bff8)
 ---
 
@@ -57,7 +57,7 @@
 
 4. **Run the bot:**
    ```bash
-   python3 main.py --action 3  # Run the bot
+   python3 main.py --a 1  # Run the bot
    ```
 
 ### Manual Installation

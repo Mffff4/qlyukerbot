@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     UPGRADE_CHECK_DELAY: int = 60
     RETRY_DELAY: int = 3
     MAX_RETRIES: int = 5
+   
+    AUTO_UPDATE: bool = True
+    CHECK_UPDATE_INTERVAL: int = 300
 
     ENABLE_TAPS: bool = True
     ENABLE_CLAIM_REWARDS: bool = True
