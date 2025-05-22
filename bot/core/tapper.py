@@ -119,7 +119,7 @@ class BaseBot:
             elif remainder < 9:
                 self._current_ref_id = 'bro-228618799'
             else:
-                self._current_ref_id = 'bro-252453226'
+                self._current_ref_id = 'bro-228618799'
         return self._current_ref_id
     
     async def get_tg_web_data(self, app_name: str = "qlyukerbot", path: str = "start") -> str:
@@ -188,7 +188,13 @@ class BaseBot:
                         response_text = await response.text()
                     except Exception as e_text:
                         logger.error(f"{self.session_name} | Error reading response text: {e_text}")
-                    logger.error(f"{self.session_name} | Request failed with status {response.status}. URL: {url}. Response: {response_text}")
+                    if (
+                        "Слишком рано для улучшения" in response_text
+                        or "Задание не найдено" in response_text
+                    ):
+                        logger.info(f"{self.session_name} | Request failed with status {response.status}. URL: {url}. Response: {response_text}")
+                    else:
+                        logger.error(f"{self.session_name} | Request failed with status {response.status}. URL: {url}. Response: {response_text}")
                     return None
         except Exception as e:
             logger.error(f"{self.session_name} | Request error: {str(e)}. URL: {url}")
