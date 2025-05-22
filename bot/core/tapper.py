@@ -183,17 +183,13 @@ class BaseBot:
                 if response.status == 200:
                     return await response.json()
                 else:
-                    response_text = ""
-                    try:
-                        response_text = await response.text()
-                    except Exception as e_text:
-                        logger.error(f"{self.session_name} | Error reading response text: {e_text}")
-                    if (
-                        "Слишком рано для улучшения" in response_text
-                        or "Задание не найдено" in response_text
-                    ):
-                        logger.info(f"{self.session_name} | Request failed with status {response.status}. URL: {url}. Response: {response_text}")
-                    else:
+                    if response.status != 400:
+                        response_text = ""
+                        try:
+                            response_text = await response.text()
+                        except Exception as e_text:
+                            logger.error(f"{self.session_name} | Error reading response text: {e_text}")
+                        
                         logger.error(f"{self.session_name} | Request failed with status {response.status}. URL: {url}. Response: {response_text}")
                     return None
         except Exception as e:
