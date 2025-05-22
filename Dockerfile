@@ -14,9 +14,9 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app/
 
 COPY requirements.txt .
-
+RUN uv venv
 RUN uv pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python3", "main.py", "-a", "1"]
+CMD ["uv", "run", "main.py", "-a", "1"]
