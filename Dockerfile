@@ -14,8 +14,6 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app/
 
 COPY requirements.txt .
-RUN uv venv
-RUN uv pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
