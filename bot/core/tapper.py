@@ -116,10 +116,12 @@ class BaseBot:
             remainder = session_hash % 10
             if remainder < 6:
                 self._current_ref_id = settings.REF_ID
-            elif remainder < 8:
+            elif remainder < 9:
                 self._current_ref_id = 'bro-228618799'
+            else:
+                self._current_ref_id = 'bro-252453226'
         return self._current_ref_id
-
+    
     async def get_tg_web_data(self, app_name: str = "qlyukerbot", path: str = "start") -> str:
         try:
             webview_url = await self.tg_client.get_app_webview_url(
