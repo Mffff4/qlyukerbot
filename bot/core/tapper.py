@@ -1051,7 +1051,7 @@ class BaseBot:
                 if energy_restored:
                     energy_restores_used_in_phase += 1
             
-            if self._current_energy <= 10: 
+            if self._current_energy <= 50: 
                 break
                 
             if self._current_energy > 200:

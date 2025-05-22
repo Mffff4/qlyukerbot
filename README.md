@@ -40,7 +40,7 @@
 ### Quick Start
 1. **Download the project:**
    ```bash
-   git clone https://github.com/Mffff4/qlyukerbot.git
+   git clone https://bitbucket.org:mffff4/qlyukerbot.git
    cd qlyukerbot
    ```
 
