@@ -1,8 +1,0 @@
-venv
-.env
-sessions/
-*.zip
-checkbuy.py
-__pycache__/
-shop_manager.py
-.DS_Store
