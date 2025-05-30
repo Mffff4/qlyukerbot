@@ -13,6 +13,7 @@ class UpdateManager:
         self.is_update_restart = "--update-restart" in sys.argv
         self._configure_git_safe_directory()
         self._check_and_switch_repository()
+        self._ensure_uv_installed()
 
     def _configure_git_safe_directory(self) -> None:
         try:
@@ -26,7 +27,29 @@ class UpdateManager:
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to configure git safe.directory: {e}")
 
-    def _check_requirements_changed(self) -> bool:
+    def _ensure_uv_installed(self) -> None:
+        try:
+            subprocess.run(["uv", "--version"], check=True, capture_output=True)
+            logger.info("uv package manager is already installed")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            logger.info("Installing uv package manager...")
+            try:
+                subprocess.run(
+                    ["curl", "-LsSf", "https://astral.sh/uv/install.sh"],
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                ).stdout | subprocess.run(
+                    ["sh"],
+                    check=True,
+                    stdin=subprocess.PIPE
+                )
+                logger.info("Successfully installed uv package manager")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to install uv: {e}")
+                sys.exit(1)
+
+    def _check_dependency_files_changed(self) -> bool:
         try:
             result = subprocess.run(
                 ["git", "diff", "--name-only", "HEAD@{1}", "HEAD"],
@@ -35,9 +58,14 @@ class UpdateManager:
                 check=True
             )
             changed_files = result.stdout.strip().split('\n')
-            return "requirements.txt" in changed_files
+            dependency_files = {
+                "requirements.txt",
+                "uv.lock",
+                "pyproject.toml"
+            }
+            return any(file in changed_files for file in dependency_files)
         except subprocess.CalledProcessError as e:
-            logger.error(f"Error checking requirements changes: {e}")
+            logger.error(f"Error checking dependency file changes: {e}")
             return True
 
     async def check_for_updates(self) -> bool:
@@ -64,14 +92,29 @@ class UpdateManager:
                 logger.error(f"Git error details: {e.stderr.decode()}")
             return False
 
-    def _install_requirements(self) -> bool:
+    def _install_dependencies(self) -> bool:
+        if not self._check_dependency_files_changed():
+            logger.info("📦 No changes in dependency files, skipping installation")
+            return True
+
+        logger.info("📦 Changes detected in dependency files, updating dependencies...")
+        
         try:
-            if not self._check_requirements_changed():
-                logger.info("📦 No changes in requirements.txt, skipping dependency installation")
-                return True
-                
-            logger.info("📦 Changes detected in requirements.txt, updating dependencies...")
-            subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], check=True)
+            if os.path.exists("pyproject.toml"):
+                logger.info("Installing dependencies from pyproject.toml...")
+                if os.path.exists("uv.lock"):
+                    subprocess.run(["uv", "pip", "sync"], check=True)
+                else:
+                    subprocess.run(["uv", "pip", "install", "."], check=True)
+            elif os.path.exists("uv.lock"):
+                logger.info("Installing dependencies from uv.lock...")
+                subprocess.run(["uv", "pip", "sync"], check=True)
+            elif os.path.exists("requirements.txt"):
+                logger.info("Installing dependencies from requirements.txt...")
+                subprocess.run(["uv", "pip", "install", "-r", "requirements.txt"], check=True)
+            else:
+                logger.warning("No dependency files found")
+                return False
             return True
         except subprocess.CalledProcessError as e:
             logger.error(f"Error installing dependencies: {e}")
@@ -84,7 +127,7 @@ class UpdateManager:
             logger.error("❌ Failed to pull updates")
             return
 
-        if not self._install_requirements():
+        if not self._install_dependencies():
             logger.error("❌ Failed to update dependencies")
             return
 
