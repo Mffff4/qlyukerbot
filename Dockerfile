@@ -14,9 +14,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app/
 
 COPY requirements.txt .
-RUN uv venv
+RUN uv venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+ENV VIRTUAL_ENV="/app/.venv"
 RUN uv pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["uv", "run", "main.py", "-a", "1"]
+CMD ["python", "main.py", "-a", "1"]
