@@ -34,19 +34,30 @@ class UpdateManager:
         except (subprocess.CalledProcessError, FileNotFoundError):
             logger.info("Installing uv package manager...")
             try:
-                subprocess.run(
+                curl_process = subprocess.run(
                     ["curl", "-LsSf", "https://astral.sh/uv/install.sh"],
                     check=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE
-                ).stdout | subprocess.run(
-                    ["sh"],
-                    check=True,
-                    stdin=subprocess.PIPE
+                    capture_output=True,
+                    text=True
                 )
+                
+                install_script_path = "/tmp/uv_install.sh"
+                with open(install_script_path, "w") as f:
+                    f.write(curl_process.stdout)
+                
+                os.chmod(install_script_path, 0o755)
+                subprocess.run([install_script_path], check=True)
+                
+                os.remove(install_script_path)
+                
                 logger.info("Successfully installed uv package manager")
+                
+                os.environ["PATH"] = f"{os.path.expanduser('~/.cargo/bin')}:{os.environ.get('PATH', '')}"
             except subprocess.CalledProcessError as e:
                 logger.error(f"Failed to install uv: {e}")
+                sys.exit(1)
+            except Exception as e:
+                logger.error(f"Unexpected error while installing uv: {e}")
                 sys.exit(1)
 
     def _check_dependency_files_changed(self) -> bool:
