@@ -13,4 +13,6 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app/
 
+COPY . .
+RUN uv sync 
 CMD ["uv", "run", "main.py", "-a", "1"]
