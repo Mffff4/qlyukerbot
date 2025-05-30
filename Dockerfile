@@ -21,11 +21,6 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app/
 
-COPY pyproject.toml requirements.txt* uv.lock* ./
-
-RUN uv pip install --system setuptools wheel && \
-    uv sync
-
 COPY . .
 
 CMD ["uv", "run", "main.py", "-a", "1"]
