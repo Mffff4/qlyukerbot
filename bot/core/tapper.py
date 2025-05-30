@@ -748,25 +748,26 @@ class BaseBot:
             current_level = upgrade_data.get('level', 0)
             increment = next_level.get('increment', 0)
             
-            if price > self._current_coins:
+            if price == 0 or increment == 0:
                 continue
-                
-            if price == 0:
-                efficiency = float('inf')
-                time_to_accumulate = 0
-            else:
-                efficiency = increment / price
-                if current_income_per_hour > 0:
-                    time_to_accumulate = price / current_income_per_hour
-                else:
-                    time_to_accumulate = float('inf')
+
+            efficiency = (increment * 3600) / (price / 1000)
             
-            roi = time_to_accumulate / increment if increment > 0 else float('inf')
+            payback_time = price / (increment * 3600) if increment > 0 else float('inf')
+            
+            urgency = 1.0
+            if current_income_per_hour > 0:
+                time_to_expensive = price / current_income_per_hour
+                if time_to_expensive < 4:
+                    urgency = 0.7
+            
+            final_score = (efficiency * urgency) / (payback_time + 1)
             
             upgrade_scores.append({
                 "upgrade_id": upgrade_id,
                 "efficiency": efficiency,
-                "roi": roi,
+                "payback_time": payback_time,
+                "final_score": final_score,
                 "price": price,
                 "increment": increment,
                 "level": current_level
@@ -774,13 +775,20 @@ class BaseBot:
             
         sorted_upgrades = sorted(
             upgrade_scores,
-            key=lambda x: (x['roi'], -x['efficiency'])
+            key=lambda x: (-x['final_score'], x['payback_time'])
         )
         
         if sorted_upgrades:
-            logger.info(f"{self.session_name} | 💡 Found {len(sorted_upgrades)} upgrades to consider.")
+            best_upgrade = sorted_upgrades[0]
+            logger.info(
+                f"{self.session_name} | 💡 Best upgrade: {best_upgrade['upgrade_id']}, "
+                f"level: {best_upgrade['level']}, "
+                f"price: {best_upgrade['price']}, "
+                f"increment: {best_upgrade['increment']}/sec, "
+                f"payback: {best_upgrade['payback_time']:.1f}h"
+            )
+            
         return sorted_upgrades
-        
     async def check_and_buy_upgrades(self) -> None:
         logger.info(f"{self.session_name} | ▶️ Starting upgrade phase with 💰 {self._current_coins}")
         prioritized_upgrades = await self._prioritize_upgrades()
