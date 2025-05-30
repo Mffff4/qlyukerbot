@@ -1,49 +1,38 @@
-#!/bin/bash-low-unrelated-histories
+#!/bin/bash
 
-firstRun=true
+first_run=true
 
-# Проверка на наличие папки venv
-if [ ! -d "venv" ]; then
-    echo "Creating virtual environment..."
-    python3 -m venv venv
-fi
-
-echo "Activating virtual environment..."
-source venv/bin/activate
-
-# Проверка на наличие установленного флага в виртуальном окружении
-if [ ! -f "venv/installed" ]; then
-    if [ -f "requirements.txt" ]; then
-		echo "Installing wheel for faster installing"
-		pip3 install wheel
-        echo "Installing dependencies..."
-        pip3 install -r requirements.txt
-        touch venv/installed
-    else
-        echo "requirements.txt not found, skipping dependency installation."
+check_uv() {
+    if ! command -v uv &> /dev/null; then
+        echo "uv is not installed. Installing..."
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        
+        echo "Reloading shell to update PATH..."
+        exec "$SHELL"
     fi
-else
-    echo "Dependencies already installed, skipping installation."
-fi
+}
 
 if [ ! -f ".env" ]; then
-	echo "Copying configuration file"
-	cp .env-example .env
-else
-	echo "Skipping .env copying"
+    echo "Copying configuration file..."
+    cp .env-example .env
 fi
 
-while true
-do
+check_uv
+
+while true; do
+    echo "Checking for updates..."
     git fetch
     git pull
-    if [ "$firstRun" = true ]; then
-        python3 main.py
-        firstRun=false
+    
+    if [ "$first_run" = true ]; then
+        echo "Starting the application for the first time..."
+        uv run main.py
+        first_run=false
     else
-        python3 main.py -a 1
+        echo "Restarting the application..."
+        uv run main.py -a 1
     fi
-
-    echo "Restarting the program in 10 seconds..."
+    
+    echo "Restarting program in 10 seconds..."
     sleep 10
 done
