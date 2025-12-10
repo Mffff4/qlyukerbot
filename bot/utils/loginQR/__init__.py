@@ -9,7 +9,6 @@ logging.basicConfig(
     level=logging.WARNING, format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
 
-
 if args.token:
     app = Client(
         args.session_name or "pyrogram",
@@ -28,10 +27,7 @@ if args.token:
     me = app.get_me().first_name
     session_string = app.export_session_string()
     app.stop()
-    #logging.info(
-    #        f"Generated session for {me}"
-    #    )
-    sys.exit(
-    #    print(f'SessionString:\n{session_string}\n\nquitting...')
-    )
 
+    sys.exit(
+
+    )

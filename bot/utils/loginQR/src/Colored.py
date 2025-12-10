@@ -4,9 +4,6 @@ from gettext import gettext
 
 class ColoredArgParser(argparse.ArgumentParser):
 
-    # color_dict is a class attribute, here we avoid compatibility
-    # issues by attempting to override the __init__ method
-    # RED : Error, GREEN : Okay, YELLOW : Warning, Blue: Help/Info 
     color_dict = {'RED' : '1;31', 'GREEN' : '1;32', 
                 'YELLOW' : '1;33', 'BLUE' : '1;36'}
 
@@ -28,11 +25,11 @@ class ColoredArgParser(argparse.ArgumentParser):
         if message:
             if file is None:
                 file = sys.stderr
-            # Print messages in bold, colored text if color is given.
+
             if color is None:
                 file.write(message)
             else:
-                # \x1b[ is the ANSI Control Sequence Introducer (CSI)
+
                 file.write('\x1b[' + color + 'm' + message.strip() + '\x1b[0m\n')
 
     def exit(self, status = 0, message = None):

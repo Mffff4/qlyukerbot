@@ -5,7 +5,6 @@ from .async_lock import AsyncInterProcessLock
 from . import proxy_utils, config_utils, first_run
 from bot.config import settings
 
-
 if not os.path.isdir(settings.GLOBAL_CONFIG_PATH):
     GLOBAL_CONFIG_PATH = os.environ.get(settings.GLOBAL_CONFIG_PATH, "")
 else:

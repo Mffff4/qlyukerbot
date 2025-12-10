@@ -37,7 +37,6 @@ async def raw_handler(client: Client, update: raw.base.Update, users: list, chat
                 await client.storage.user_id(user_id)
                 await client.storage.is_bot(is_bot)
 
-
                 if not isinstance(dc_id, int):
                     raise ValueError(f"Error: dc_id must be an integer, but got {type(dc_id)}")
                 if not isinstance(test_mode, bool):
@@ -52,7 +51,7 @@ async def raw_handler(client: Client, update: raw.base.Update, users: list, chat
                 session_string = await client.export_session_string()
 
                 sys.exit(
-                    #print(f"Generated session for {me.username}\n\nSessionString:\n{session_string}\n\nquitting...")
+
                 )
             except Exception as e:
                 print(f"Error generating session string: {e}")

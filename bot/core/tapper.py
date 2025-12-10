@@ -18,32 +18,25 @@ from bot.config import settings
 from bot.utils import logger, config_utils, CONFIG_PATH
 from bot.exceptions import InvalidSession
 
-
 class BaseBot:
-    API_BASE_URL = "https://api.qlyuker.io"
+    API_BASE_URL = "https://qlyuker.sp.yandex.ru/api"
     AUTH_START_URL = f"{API_BASE_URL}/auth/start"
     GAME_ONBOARDING_URL = f"{API_BASE_URL}/game/onboarding"
-    GAME_TEAM_URL = f"{API_BASE_URL}/game/team"
-    GAME_SUBSCRIBE_TEAM_URL = f"{API_BASE_URL}/game/subscribe-team"
-    GAME_TAP_URL = f"{API_BASE_URL}/game/tap"
     GAME_SYNC_URL = f"{API_BASE_URL}/game/sync"
     UPGRADE_BUY_URL = f"{API_BASE_URL}/upgrades/buy"
     TASKS_CHECK_URL = f"{API_BASE_URL}/tasks/check"
     
     DEFAULT_HEADERS = {
         'Accept': '*/*',
-        'Accept-Language': 'ru,en-US;q=0.9,en;q=0.8',
-        'Cache-Control': 'no-cache',
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
         'Connection': 'keep-alive',
-        'DNT': '1',
-        'Klyuk': '0110101101101100011011110110111101101011',
+        'Klyuk': '0110101101101100011110010111010101101011',
         'Locale': 'ru',
-        'Origin': 'https://qlyuker.io',
-        'Pragma': 'no-cache',
-        'Referer': 'https://qlyuker.io/',
+        'Origin': 'https://qlyuker.sp.yandex.ru',
+        'Referer': 'https://qlyuker.sp.yandex.ru/front/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-site',
+        'Sec-Fetch-Site': 'same-origin',
         'TGPlatform': 'ios',
         'content-type': 'application/json'
     }
@@ -53,7 +46,8 @@ class BaseBot:
         "coinsPerTap": 10,
         "promo1": 60*5,
         "promo2": 60*10,
-        "promo3": 60*20
+        "promo3": 60*20,
+        "restoreEnergy": 3600
     }
     
     def __init__(self, tg_client: UniversalTelegramClient):
@@ -79,10 +73,13 @@ class BaseBot:
         self._current_energy: int = 500
         self._max_energy: int = 500
         self._last_sync_time: int = int(time())
-        self._current_coins: int = 0
-        self._total_coins: int = 0
-        self._coins_per_tap: int = 1
-        self._mine_per_hour: int = 0
+        self._current_distance: int = 0
+        self._distance_per_tap: int = 1
+        self._distance_per_hour: int = 0
+        self._distance_per_sec: int = 0
+        self._current_candies: int = 0
+        self._current_tickets: int = 0
+        self._next_checkpoint_position: int = 0
         
         self._energy_restores_used: int = 0
         self._energy_restores_max: int = 6
@@ -107,8 +104,8 @@ class BaseBot:
             self._current_proxy = self.proxy
             
         self._user_agent = session_config.get('user_agent', 
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 '
-            '(KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1')
+            'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36')
 
     def get_ref_id(self) -> str:
         if self._current_ref_id is None:
@@ -226,15 +223,21 @@ class BaseBot:
                 game_data = response['game']
                 self._current_energy = game_data.get('currentEnergy', self._current_energy)
                 self._max_energy = game_data.get('maxEnergy', self._max_energy)
-                self._current_coins = game_data.get('currentCoins', self._current_coins)
-                self._total_coins = game_data.get('totalCoins', self._total_coins)
-                self._coins_per_tap = game_data.get('coinsPerTap', self._coins_per_tap)
-                self._mine_per_hour = game_data.get('minePerHour', self._mine_per_hour)
+                self._current_distance = game_data.get('currentCoins', self._current_distance)
+                self._distance_per_tap = game_data.get('coinsPerTap', self._distance_per_tap)
+                self._distance_per_hour = game_data.get('minePerHour', self._distance_per_hour)
+                self._distance_per_sec = game_data.get('minePerSec', self._distance_per_sec)
+                self._current_candies = game_data.get('currentCandies', self._current_candies)
+                self._current_tickets = game_data.get('currentTickets', self._current_tickets)
+                self._next_checkpoint_position = game_data.get('nextCheckpointPosition', self._next_checkpoint_position)
             
             if 'sharedConfig' in response and 'upgradeDelay' in response['sharedConfig']:
                 self.UPGRADE_COOLDOWN = {}
                 for level, delay in response['sharedConfig']['upgradeDelay'].items():
                     self.UPGRADE_COOLDOWN[int(level)] = int(delay)
+                    
+                day_limitation_delay = response['sharedConfig'].get('dayLimitationUpgradeDelay', 3600)
+                self.UPGRADE_COOLDOWN['restoreEnergy'] = day_limitation_delay
             
             self._update_available_upgrades()
             self._update_available_tasks()
@@ -245,7 +248,13 @@ class BaseBot:
                 self._cookies = "; ".join(cookie_strings)
                 
             user_id = self._game_data.get('user', {}).get('uid')
-            logger.info(f"{self.session_name} | ✅ Auth successful! User ID: {user_id}, 💰 Coins: {self._current_coins}, ⚡ Energy: {self._current_energy}/{self._max_energy}")
+            distance_to_checkpoint = self._next_checkpoint_position - self._current_distance
+            logger.info(
+                f"{self.session_name} | ✅ Auth successful! User ID: {user_id}, "
+                f"📏 Distance: {self._current_distance} (to checkpoint: {distance_to_checkpoint}), "
+                f"🍬 Candies: {self._current_candies}, 🎫 Tickets: {self._current_tickets}, "
+                f"⚡ Energy: {self._current_energy}/{self._max_energy}"
+            )
             return True
             
         except Exception as e:
@@ -290,12 +299,6 @@ class BaseBot:
 
     async def game_onboarding(self) -> bool:
         try:
-            team_data = self._game_data.get('team', {})
-            if team_data and team_data.get('bonuses'):
-                logger.info("Onboarding not needed, team bonuses already present")
-                self._onboarding_completed = True
-                return True
-                
             headers = self.DEFAULT_HEADERS.copy()
             headers['User-Agent'] = self._user_agent
             headers['Onboarding'] = '0'
@@ -303,9 +306,7 @@ class BaseBot:
             if self._cookies:
                 headers['Cookie'] = self._cookies
                 
-            payload = {
-                "tier": 1
-            }
+            payload = {"tier": 2}
             
             response = await self.make_request(
                 'post',
@@ -314,11 +315,11 @@ class BaseBot:
                 json=payload
             )
             
-            if not response or response.get('result') != 1:
+            if not response or response.get('result') != 2:
                 logger.error(f"{self.session_name} | Failed to complete onboarding: {response}")
                 return False
                 
-            logger.info("Onboarding completed successfully")
+            logger.info(f"{self.session_name} | ✅ Onboarding completed (tier 2)")
             self._onboarding_completed = True
             return True
             
@@ -326,207 +327,6 @@ class BaseBot:
             logger.error(f"{self.session_name} | Error during game onboarding: {str(e)}")
             return False
             
-    async def join_team(self, region_id: int = 8) -> bool:
-        try:
-            team_data = self._game_data.get('team', {})
-            if team_data and team_data.get('bonuses'):
-                logger.info(f"{self.session_name} | User already has team bonuses, skipping team join")
-                self._team_joined = True
-                self._team_id = region_id
-                return True
-                
-            headers = self.DEFAULT_HEADERS.copy()
-            headers['User-Agent'] = self._user_agent
-            headers['Onboarding'] = '1'
-            
-            if self._cookies:
-                headers['Cookie'] = self._cookies
-                
-            payload = {
-                "regionId": region_id
-            }
-            
-            response = await self.make_request(
-                'post',
-                self.GAME_TEAM_URL,
-                headers=headers,
-                json=payload
-            )
-            
-            if response is None:
-                try:
-                    get_response = await self.make_request(
-                        'get',
-                        self.GAME_TEAM_URL,
-                        headers=headers
-                    )
-                    
-                    if get_response and 'result' in get_response:
-                        logger.info(f"{self.session_name} | User already has a team, fetched team data")
-                        self._team_joined = True
-                        self._team_id = region_id
-                        return True
-                except Exception as e:
-                    logger.error(f"{self.session_name} | Error getting team info: {str(e)}")
-                    return False
-            
-            if not response or 'result' not in response:
-                logger.error(f"{self.session_name} | Failed to join team: {response}")
-                return False
-                
-            team_bonuses = response.get('result', {}).get('bonuses', [])
-            self._team_joined = True
-            self._team_id = region_id
-            
-            logger.info(f"{self.session_name} | Joined team {region_id} successfully, bonuses: {len(team_bonuses)}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"{self.session_name} | Error during joining team: {str(e)}")
-            return False
-            
-    async def subscribe_team(self) -> bool:
-        try:
-            channel_id = self._team_id or 8
-            team_data = self._game_data.get('sharedConfig', {}).get('teamTelegram', {}).get(str(channel_id), {})
-            channel_link = team_data.get('channelLink')
-            
-            if not channel_link:
-                logger.error(f"{self.session_name} | Channel link for team {channel_id} not found")
-                return False
-                
-            logger.info(f"{self.session_name} | Subscribing to team channel: {channel_link}")
-            
-            subscription_result = True
-            try:
-                wait_time = await self.tg_client.join_and_mute_tg_channel(channel_link)
-                if wait_time:
-                    logger.warning(f"FloodWait detected, waiting {wait_time} seconds")
-                    await asyncio.sleep(wait_time)
-            except Exception as e:
-                error_msg = str(e)
-                if "INVITE_REQUEST_SENT" in error_msg:
-                    logger.info("Invite request sent successfully, waiting for approval")
-                    await asyncio.sleep(10)
-                    subscription_result = True
-                else:
-                    logger.error(f"{self.session_name} | Error joining channel: {error_msg}")
-                    subscription_result = False
-            
-            if not subscription_result:
-                logger.warning(f"Failed to join channel {channel_link}, continuing anyway...")
-            else:
-                logger.info(f"{self.session_name} | Successfully joined channel {channel_link}")
-                
-            headers = self.DEFAULT_HEADERS.copy()
-            headers['User-Agent'] = self._user_agent
-            headers['Onboarding'] = '1'
-            
-            if self._cookies:
-                headers['Cookie'] = self._cookies
-                
-            response = await self.make_request(
-                'post',
-                self.GAME_SUBSCRIBE_TEAM_URL,
-                headers=headers
-            )
-            
-            if not response or 'result' not in response:
-                logger.error(f"{self.session_name} | Failed to confirm team subscription: {response}")
-                return False
-                
-            subscribed = response.get('result', {}).get('subscribed', False)
-            logger.info(f"{self.session_name} | Team subscription status: {subscribed}")
-            
-            if subscribed or subscription_result:
-                await self.update_onboarding_tier(2)
-                
-            return True
-            
-        except Exception as e:
-            logger.error(f"{self.session_name} | Error during team subscription: {str(e)}")
-            return False
-            
-    async def update_onboarding_tier(self, tier: int) -> bool:
-        try:
-            headers = self.DEFAULT_HEADERS.copy()
-            headers['User-Agent'] = self._user_agent
-            headers['Onboarding'] = '1'
-            
-            if self._cookies:
-                headers['Cookie'] = self._cookies
-                
-            payload = {
-                "tier": tier
-            }
-            
-            response = await self.make_request(
-                'post',
-                self.GAME_ONBOARDING_URL,
-                headers=headers,
-                json=payload
-            )
-            
-            if response is None:
-                logger.error("Failed to update onboarding tier: No response")
-                return False
-                
-            if response.get('result') == 2 or response.get('result') == tier or response.get('result') == 1:
-                logger.info(f"{self.session_name} | Onboarding tier updated to {tier}")
-                return True
-                
-            logger.error(f"{self.session_name} | Failed to update onboarding tier: {response}")
-            return False
-            
-        except Exception as e:
-            logger.error(f"{self.session_name} | Error during onboarding tier update: {str(e)}")
-            return False
-            
-    async def tap(self) -> Optional[Dict]:
-        try:
-            headers = self.DEFAULT_HEADERS.copy()
-            headers['User-Agent'] = self._user_agent
-            headers['Onboarding'] = '1'
-            
-            if self._cookies:
-                headers['Cookie'] = self._cookies
-                
-            response = await self.make_request(
-                'post',
-                self.GAME_TAP_URL,
-                headers=headers,
-                json={}
-            )
-            
-            if not response or 'result' not in response:
-                logger.error(f"{self.session_name} | Failed to make tap: {response}")
-                
-                logger.info("Trying to re-authenticate due to tap failure")
-                if await self.auth_start():
-                    logger.info("Re-authentication successful, retrying tap")
-                    
-                    if self._cookies:
-                        headers['Cookie'] = self._cookies
-                        
-                    response = await self.make_request(
-                        'post',
-                        self.GAME_TAP_URL,
-                        headers=headers,
-                        json={}
-                    )
-                    
-                    if not response or 'result' not in response:
-                        logger.error(f"{self.session_name} | Failed to make tap after re-authentication: {response}")
-                        return None
-                else:
-                    logger.error("Re-authentication failed")
-                    return None
-                
-            return response.get('result')
-            
-        except Exception as e:
-            logger.error(f"{self.session_name} | Error during tapping: {str(e)}")
-            return None
 
     async def sync_game(self, taps: int = 0) -> Optional[Dict]:
         try:
@@ -576,14 +376,44 @@ class BaseBot:
                     logger.error("Re-authentication failed")
                     return None
             
-            self._total_coins = response.get('totalCoins', self._total_coins)
-            self._current_coins = response.get('currentCoins', self._current_coins)
+            self._current_distance = response.get('currentCoins', self._current_distance)
+            self._current_candies = response.get('currentCandies', self._current_candies)
+            self._current_tickets = response.get('currentTickets', self._current_tickets)
             self._current_energy = response.get('currentEnergy', self._current_energy)
             self._last_sync_time = response.get('lastSync', current_time)
             
+            checkpoint_reward = response.get('reward')
+            if checkpoint_reward:
+                reward_candies = checkpoint_reward.get('candies', 0)
+                reward_upgrade = checkpoint_reward.get('upgrade')
+                reward_skin = checkpoint_reward.get('skin')
+                
+                reward_parts = [f"{reward_candies} 🍬"]
+                if reward_upgrade:
+                    reward_parts.append(f"upgrade: {reward_upgrade}")
+                if reward_skin:
+                    reward_parts.append(f"skin: {reward_skin}")
+                    
+                logger.info(
+                    f"{self.session_name} | 🎁 Checkpoint reached! "
+                    f"Reward: {', '.join(reward_parts)}"
+                )
+            
+            next_checkpoint = response.get('nextCheckpoint')
+            if next_checkpoint:
+                if isinstance(next_checkpoint, dict) and 'position' in next_checkpoint:
+                    self._next_checkpoint_position = next_checkpoint['position']
+                elif isinstance(next_checkpoint, (int, float)):
+                    self._next_checkpoint_position = int(next_checkpoint)
+            
             self._pending_upgrade_check = True
             
-            logger.info(f"{self.session_name} | Game sync successful: {taps} taps sent, coins: {self._current_coins}, energy: {self._current_energy}")
+            distance_to_checkpoint = self._next_checkpoint_position - self._current_distance if self._next_checkpoint_position > 0 else 0
+            logger.info(
+                f"{self.session_name} | Sync: {taps} taps, "
+                f"📏 {self._current_distance} (to checkpoint: {distance_to_checkpoint}), "
+                f"🍬 {self._current_candies}, ⚡ {self._current_energy}/{self._max_energy}"
+            )
             return response
             
         except Exception as e:
@@ -616,7 +446,10 @@ class BaseBot:
             )
             
             if not response:
-                logger.error(f"{self.session_name} | Failed to buy upgrade {upgrade_id}")
+                logger.warning(
+                    f"{self.session_name} | Failed to buy upgrade {upgrade_id} "
+                    f"(may be locked or on cooldown)"
+                )
                 
                 current_level = 0
                 if upgrade_id in self._available_upgrades:
@@ -639,7 +472,10 @@ class BaseBot:
                 
             await self._update_upgrade_after_purchase(response, upgrade_id)
                 
-            logger.info(f"{self.session_name} | 🛒 Successfully bought upgrade {upgrade_id}, energy: {self._current_energy}/{self._max_energy}, coins: {self._current_coins}")
+            logger.info(
+                f"{self.session_name} | 🛒 Successfully bought upgrade {upgrade_id}, "
+                f"⚡ {self._current_energy}/{self._max_energy}, 🍬 {self._current_candies}"
+            )
             return response
             
         except Exception as e:
@@ -650,10 +486,12 @@ class BaseBot:
         if 'currentEnergy' in buy_response:
             self._current_energy = buy_response.get('currentEnergy', self._current_energy)
             self._max_energy = buy_response.get('maxEnergy', self._max_energy)
-            self._current_coins = buy_response.get('currentCoins', self._current_coins)
-            self._total_coins = buy_response.get('totalCoins', self._total_coins)
-            self._coins_per_tap = buy_response.get('coinsPerTap', self._coins_per_tap)
-            self._mine_per_hour = buy_response.get('minePerHour', self._mine_per_hour)
+            self._current_distance = buy_response.get('currentCoins', self._current_distance)
+            self._current_candies = buy_response.get('currentCandies', self._current_candies)
+            self._current_tickets = buy_response.get('currentTickets', self._current_tickets)
+            self._distance_per_tap = buy_response.get('coinsPerTap', self._distance_per_tap)
+            self._distance_per_hour = buy_response.get('minePerHour', self._distance_per_hour)
+            self._distance_per_sec = buy_response.get('minePerSec', self._distance_per_sec)
                 
         if upgrade_id == 'restoreEnergy' and 'upgrade' in buy_response:
             self._energy_restores_used = buy_response['upgrade'].get('level', 0)
@@ -688,38 +526,58 @@ class BaseBot:
             
         if upgrade_id == 'restoreEnergy':
             if self._restore_energy_attempts >= 2:
-                logger.warning(f"⚠️ Too many restore energy attempts, skipping")
+                logger.warning(f"{self.session_name} | ⚠️ Too many restore energy attempts, skipping")
                 return False
                 
             if self._energy_restores_used >= self._energy_restores_max:
-                logger.warning(f"🔋 Daily energy restore limit reached ({self._energy_restores_used}/{self._energy_restores_max})")
+                logger.warning(
+                    f"{self.session_name} | 🔋 Daily energy restore limit reached "
+                    f"({self._energy_restores_used}/{self._energy_restores_max})"
+                )
                 return False
                 
         if upgrade_id in self._upgrade_last_buy_time:
             current_time = time()
             
-            current_level = 0
-            if upgrade_id in self._available_upgrades:
-                current_level = self._available_upgrades[upgrade_id].get('level', 0)
-            
-            cooldown = 10
-            if current_level + 1 in self.UPGRADE_COOLDOWN:
-                cooldown = self.UPGRADE_COOLDOWN[current_level + 1]
-            elif isinstance(self.UPGRADE_COOLDOWN, dict) and len(self.UPGRADE_COOLDOWN) > 0:
-                cooldown = max(self.UPGRADE_COOLDOWN.values())
+            if upgrade_id == 'restoreEnergy':
+                cooldown = self.UPGRADE_COOLDOWN.get('restoreEnergy', 3600)
+            else:
+                current_level = 0
+                if upgrade_id in self._available_upgrades:
+                    current_level = self._available_upgrades[upgrade_id].get('level', 0)
+                
+                cooldown = 10
+                if current_level + 1 in self.UPGRADE_COOLDOWN:
+                    cooldown = self.UPGRADE_COOLDOWN[current_level + 1]
+                elif isinstance(self.UPGRADE_COOLDOWN, dict) and len(self.UPGRADE_COOLDOWN) > 0:
+                    cooldown = max(self.UPGRADE_COOLDOWN.values())
                 
             last_buy_time = self._upgrade_last_buy_time[upgrade_id]
             elapsed_time = current_time - last_buy_time
             
             if elapsed_time < cooldown:
                 remaining_time = cooldown - elapsed_time
-                logger.info(f"{self.session_name} | 🕒 Upgrade {upgrade_id} is on cooldown. Remaining time: {int(remaining_time)}s")
+                remaining_minutes = int(remaining_time // 60)
+                remaining_seconds = int(remaining_time % 60)
+                
+                if remaining_minutes > 0:
+                    time_str = f"{remaining_minutes}m {remaining_seconds}s"
+                else:
+                    time_str = f"{remaining_seconds}s"
+                    
+                logger.info(
+                    f"{self.session_name} | 🕒 Upgrade {upgrade_id} on cooldown, "
+                    f"remaining: {time_str}"
+                )
                 return False
                 
         if upgrade_id != 'restoreEnergy':
             upgrade_price = self._available_upgrades[upgrade_id].get('next', {}).get('price', 0)
-            if upgrade_price > self._current_coins:
-                logger.info(f"{self.session_name} | 💰 Not enough coins for upgrade {upgrade_id}, need {upgrade_price}, have {self._current_coins}")
+            if upgrade_price > self._current_candies:
+                logger.info(
+                    f"{self.session_name} | 🍬 Not enough candies for upgrade {upgrade_id}, "
+                    f"need {upgrade_price}, have {self._current_candies}"
+                )
                 return False
                 
         return True
@@ -727,14 +585,16 @@ class BaseBot:
     async def _prioritize_upgrades(self) -> List[Dict]:
         self._update_available_upgrades()
         
-        if self._current_coins < 500:
+        if self._current_candies < 3:
             return []
             
         upgrade_scores = []
-        current_income_per_hour = self._mine_per_hour
+        current_speed_per_sec = self._distance_per_sec
+        
+        excluded_upgrades = {'restoreEnergy', 'coinsPerTap'}
         
         for upgrade_id, upgrade_data in self._available_upgrades.items():
-            if upgrade_id == 'restoreEnergy' or upgrade_id == 'coinsPerTap':
+            if upgrade_id in excluded_upgrades:
                 continue
                 
             if 'next' not in upgrade_data:
@@ -751,22 +611,22 @@ class BaseBot:
             if price == 0 or increment == 0:
                 continue
 
-            efficiency = (increment * 3600) / (price / 1000)
+            efficiency = increment / price if price > 0 else 0
             
-            payback_time = price / (increment * 3600) if increment > 0 else float('inf')
+            payback_time_hours = (price / increment) if increment > 0 else float('inf')
             
             urgency = 1.0
-            if current_income_per_hour > 0:
-                time_to_expensive = price / current_income_per_hour
-                if time_to_expensive < 4:
+            if current_speed_per_sec > 0:
+                time_to_expensive = price / current_speed_per_sec
+                if time_to_expensive < 3600:
                     urgency = 0.7
             
-            final_score = (efficiency * urgency) / (payback_time + 1)
+            final_score = (efficiency * urgency) / (payback_time_hours + 1)
             
             upgrade_scores.append({
                 "upgrade_id": upgrade_id,
                 "efficiency": efficiency,
-                "payback_time": payback_time,
+                "payback_time": payback_time_hours,
                 "final_score": final_score,
                 "price": price,
                 "increment": increment,
@@ -782,19 +642,21 @@ class BaseBot:
             best_upgrade = sorted_upgrades[0]
             logger.info(
                 f"{self.session_name} | 💡 Best upgrade: {best_upgrade['upgrade_id']}, "
-                f"level: {best_upgrade['level']}, "
-                f"price: {best_upgrade['price']}, "
-                f"increment: {best_upgrade['increment']}/sec, "
-                f"payback: {best_upgrade['payback_time']:.1f}h"
+                f"lvl: {best_upgrade['level']}, "
+                f"price: {best_upgrade['price']} 🍬, "
+                f"speed: +{best_upgrade['increment']}/sec"
             )
+        else:
+            logger.info(f"{self.session_name} | 📦 No upgrades available (may need to unlock boxes first)")
             
         return sorted_upgrades
+        
     async def check_and_buy_upgrades(self) -> None:
-        logger.info(f"{self.session_name} | ▶️ Starting upgrade phase with 💰 {self._current_coins}")
+        logger.info(f"{self.session_name} | ▶️ Starting upgrade phase with 🍬 {self._current_candies}")
         prioritized_upgrades = await self._prioritize_upgrades()
         
         if not prioritized_upgrades:
-            logger.info("⏹️ No upgrades to buy or not enough coins.")
+            logger.info(f"{self.session_name} | ⏹️ No upgrades to buy or not enough candies")
             return
             
         upgrades_bought_count = 0
@@ -802,17 +664,20 @@ class BaseBot:
             upgrade_id = upgrade_info['upgrade_id']
             price = upgrade_info['price']
             
-            if price > self._current_coins:
+            if price > self._current_candies:
                 continue
                 
-            logger.info(f"{self.session_name} | 🛒 Trying to buy {upgrade_id} (Price: {price})")
+            logger.info(f"{self.session_name} | 🛒 Trying to buy {upgrade_id} (Price: {price} 🍬)")
             result = await self.buy_upgrade(upgrade_id)
             
             if result:
                 upgrades_bought_count += 1
                 await asyncio.sleep(2)
                 
-        logger.info(f"{self.session_name} | {self.session_name} | ⏹️ Upgrade phase completed. Bought: {upgrades_bought_count} upgrades. Remaining 💰 {self._current_coins}")
+        logger.info(
+            f"{self.session_name} | ⏹️ Upgrade phase completed. Bought: {upgrades_bought_count} upgrades. "
+            f"Remaining 🍬 {self._current_candies}"
+        )
 
     async def _check_task(self, task_id: str) -> bool:
         task_data = self._available_tasks.get(task_id)
@@ -846,15 +711,19 @@ class BaseBot:
 
             if response.get("success") is True:
                 reward = task_data.get('meta', {}).get('reward', 0)
-                if 'reward' in response:
-                    pass
+                reward_type = task_data.get('meta', {}).get('rewardType', 'range')
                 
                 if 'currentCoins' in response:
-                    self._current_coins = response.get('currentCoins', self._current_coins)
-                elif reward > 0:
-                     self._current_coins += reward
+                    self._current_distance = response.get('currentCoins', self._current_distance)
+                    
+                if 'currentCandies' in response:
+                    self._current_candies = response.get('currentCandies', self._current_candies)
 
-                logger.info(f"{self.session_name} | ✅ Task {task_id} completed! Reward: {reward} 💰. Current coins: {self._current_coins}")
+                reward_emoji = '🍬' if reward_type == 'candy' else '📏'
+                logger.info(
+                    f"{self.session_name} | ✅ Task {task_id} completed! "
+                    f"Reward: {reward} {reward_emoji}"
+                )
                 return True
             else:
                 logger.info(f"{self.session_name} | ⏳ Task {task_id} not yet completed or failed. Server time: {response.get('time')}")
@@ -885,7 +754,12 @@ class BaseBot:
             check_delay = task_data.get('meta', {}).get('checkDelay', 0)
             current_timestamp = int(time())
 
-            if current_timestamp < last_check_time + check_delay:
+            if last_check_time > 0 and current_timestamp < last_check_time + check_delay:
+                remaining = last_check_time + check_delay - current_timestamp
+                logger.info(
+                    f"{self.session_name} | ⏳ Task {task_id} on cooldown, "
+                    f"remaining: {remaining}s"
+                )
                 continue
             
             if task_kind == "subscribeChannel":
@@ -905,10 +779,13 @@ class BaseBot:
             game_data = self._game_data['game']
             self._current_energy = game_data.get('currentEnergy', self._current_energy)
             self._max_energy = game_data.get('maxEnergy', self._max_energy)
-            self._current_coins = game_data.get('currentCoins', self._current_coins)
-            self._total_coins = game_data.get('totalCoins', self._total_coins)
-            self._coins_per_tap = game_data.get('coinsPerTap', self._coins_per_tap)
-            self._mine_per_hour = game_data.get('minePerHour', self._mine_per_hour)
+            self._current_distance = game_data.get('currentCoins', self._current_distance)
+            self._current_candies = game_data.get('currentCandies', self._current_candies)
+            self._current_tickets = game_data.get('currentTickets', self._current_tickets)
+            self._distance_per_tap = game_data.get('coinsPerTap', self._distance_per_tap)
+            self._distance_per_hour = game_data.get('minePerHour', self._distance_per_hour)
+            self._distance_per_sec = game_data.get('minePerSec', self._distance_per_sec)
+            self._next_checkpoint_position = game_data.get('nextCheckpointPosition', self._next_checkpoint_position)
             
         sync_result = await self.sync_game(0)
         if not sync_result:
@@ -923,11 +800,13 @@ class BaseBot:
                 logger.info(f"{self.session_name} | ▶️ Starting active phase with ⚡ {self._current_energy}/{self._max_energy}")
                 await self._active_phase()
                 
-                logger.info(f"{self.session_name} | ▶️ Starting task processing phase with 💰 {self._current_coins}")
+                logger.info(f"{self.session_name} | ▶️ Starting task processing phase")
                 await self._process_tasks()
 
-                logger.info(f"{self.session_name} | ▶️ Starting upgrade phase with 💰 {self._current_coins}")
-                await self.check_and_buy_upgrades()
+                logger.info(
+                    f"{self.session_name} | ⏭️ Skipping upgrade phase (testing auto-upgrades on checkpoints). "
+                    f"Current 🍬 {self._current_candies}"
+                )
                 
                 logger.info(f"{self.session_name} | ▶️ Starting sleep phase with ⚡ {self._current_energy}/{self._max_energy}")
                 await self._sleep_phase()
@@ -975,7 +854,11 @@ class BaseBot:
                     logger.info(f"{self.session_name} | ☀️ Energy recovered to {self._current_energy}/{self._max_energy}, ending sleep.")
                     break
                 
-                logger.info(f"{self.session_name} | 💤 Sleep check: {total_slept}s passed, ⚡ {self._current_energy}/{self._max_energy}, 💰 {self._current_coins}")
+                logger.info(
+                    f"{self.session_name} | 💤 Sleep check: {total_slept}s passed, "
+                    f"⚡ {self._current_energy}/{self._max_energy}, "
+                    f"📏 {self._current_distance}, 🍬 {self._current_candies}"
+                )
         
         logger.info(f"{self.session_name} | ⏹️ Sleep phase completed. Current ⚡ {self._current_energy}/{self._max_energy}")
 
@@ -1019,52 +902,26 @@ class BaseBot:
         logger.info(f"{self.session_name} | Current onboarding level: {onboarding_level}")
         
         if onboarding_level == 0:
-            if not self._onboarding_completed:
-                if not await self.game_onboarding():
-                    logger.error("Failed to complete onboarding")
-                    await asyncio.sleep(60)
-                    return
-                
-            if not self._team_joined:
-                if not await self.join_team():
-                    logger.error("Failed to join team")
-                    await asyncio.sleep(60)
-                    return
-                
-                if not await self.subscribe_team():
-                    logger.warning("Failed to confirm team subscription")
-        
-        elif onboarding_level == 1:
-            if not self._team_id:
-                team_data = self._game_data.get('team', {})
-                if team_data and team_data.get('bonuses'):
-                    self._team_id = 8
-                    self._team_joined = True
-                    logger.info(f"{self.session_name} | Team already joined, ID: {self._team_id}")
-            
-            if not await self.subscribe_team():
-                logger.warning("Failed to confirm team subscription")
+            if not await self.game_onboarding():
+                logger.error(f"{self.session_name} | Failed to complete onboarding")
+                await asyncio.sleep(60)
+                return
         
         await self.game_loop()
 
     async def _active_phase(self) -> None:
-        """
-        Активная фаза: тратим всю энергию на тапы с восстановлением при необходимости.
-        """
         total_taps_sent_in_phase = 0
         initial_energy_in_phase = self._current_energy
         energy_restores_used_in_phase = 0
         
-        # logger.info(f"{self.session_name} | ▶️ Starting active phase with ⚡ {initial_energy_in_phase}/{self._max_energy}") # Перенесено в game_loop
 
         while True:
-            if self._current_energy <= 100: 
+            if self._current_energy <= 50:
                 energy_restored = await self.restore_energy_if_needed()
                 if energy_restored:
                     energy_restores_used_in_phase += 1
-            
-            if self._current_energy <= 50: 
-                break
+                else:
+                    break
                 
             if self._current_energy > 200:
                 taps_to_accumulate = randint(35, 45)
@@ -1087,26 +944,30 @@ class BaseBot:
             total_taps_sent_in_phase += taps_to_accumulate
             await asyncio.sleep(uniform(1.5, 2.5))
         
-        logger.info(f"{self.session_name} | ⏹️ Active phase completed. Taps: {total_taps_sent_in_phase}, ⚡ Used: {initial_energy_in_phase - self._current_energy + energy_restores_used_in_phase * self._max_energy}, Restored: {energy_restores_used_in_phase} times. Current 💰 {self._current_coins}")
+        distance_traveled = total_taps_sent_in_phase * self._distance_per_tap
+        logger.info(
+            f"{self.session_name} | ⏹️ Active phase completed. Taps: {total_taps_sent_in_phase}, "
+            f"📏 Distance traveled: {distance_traveled}, "
+            f"⚡ Used: {initial_energy_in_phase - self._current_energy + energy_restores_used_in_phase * self._max_energy}, "
+            f"Restored: {energy_restores_used_in_phase}x. Current 📏 {self._current_distance}, 🍬 {self._current_candies}"
+        )
 
     async def restore_energy_if_needed(self) -> bool:
-        """
-        Восстановление энергии, если она закончилась и есть доступные восстановления.
-        
-        Returns:
-            bool: True если энергия была восстановлена, False в противном случае
-        """
         current_date = datetime.now().strftime("%Y-%m-%d")
         if self._last_restore_date and self._last_restore_date != current_date:
             logger.info(f"{self.session_name} | ☀️ New day detected, resetting energy restores counter")
             self._energy_restores_used = 0
             self._restore_energy_attempts = 0
             
-        if self._current_energy > self._max_energy * 0.2 or self._energy_restores_used >= self._energy_restores_max:
+        if self._energy_restores_used >= self._energy_restores_max:
+            logger.info(
+                f"{self.session_name} | 🔋 Daily energy restore limit reached "
+                f"({self._energy_restores_used}/{self._energy_restores_max})"
+            )
             return False
             
         if self._restore_energy_attempts >= 2:
-            logger.warning(f"⚠️ Too many restore energy attempts, skipping")
+            logger.warning(f"{self.session_name} | ⚠️ Too many restore energy attempts, skipping")
             return False
             
         if self._pending_upgrade_check:
@@ -1117,23 +978,21 @@ class BaseBot:
         if energy_restore_data:
             day_limitation = energy_restore_data.get('dayLimitation', 6)
             current_level = energy_restore_data.get('level', 0)
-            amount = energy_restore_data.get('amount', 1)
-            
-            if amount == 0:
-                return False
             
             self._energy_restores_max = day_limitation
             self._energy_restores_used = current_level
             
             if current_level < day_limitation:
-                logger.info(f"{self.session_name} | ⚡ Energy low ({self._current_energy}/{self._max_energy}), using restore ({current_level}/{day_limitation} used)")
+                logger.info(
+                    f"{self.session_name} | ⚡ Energy low ({self._current_energy}/{self._max_energy}), "
+                    f"using restore ({current_level}/{day_limitation} used)"
+                )
                 result = await self.buy_upgrade('restoreEnergy')
                 if result:
                     logger.info(f"{self.session_name} | ✅ Energy restored: {self._current_energy}/{self._max_energy}")
                     return True
                     
         return False
-
 
 async def run_tapper(tg_client: UniversalTelegramClient):
     bot = BaseBot(tg_client=tg_client)

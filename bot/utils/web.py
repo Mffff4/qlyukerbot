@@ -47,9 +47,9 @@ def index():
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
         <style>
-          .dropzone { border: 2px dashed #6366F1; border-radius: 12px; background-color: #E5E7EB; min-height: 150px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-          .dz-message { font-weight: 500; font-size: 1.25rem; color: #4F46E5; text-align: center; }
-          .dropzone:hover { background-color: #D1D5DB; }
+          .dropzone { border: 2px dashed
+          .dz-message { font-weight: 500; font-size: 1.25rem; color:
+          .dropzone:hover { background-color:
           .file-list th, .file-list td { vertical-align: middle; }
           @media (max-width: 768px) { .file-list th, .file-list td { padding: 0.5rem; } }
         </style>
@@ -69,7 +69,7 @@ def index():
               <table class="min-w-full bg-white file-list">
                 <thead>
                   <tr>
-                    <th class="py-2 px-4 border-b">#</th>
+                    <th class="py-2 px-4 border-b">
                     <th class="py-2 px-4 border-b">Filename</th>
                     <th class="py-2 px-4 border-b">Actions</th>
                   </tr>

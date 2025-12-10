@@ -16,10 +16,8 @@ PROXY_TYPES = {
     'https': ProxyType.HTTP
 }
 
-
 def get_proxy_type(proxy_type: str) -> ProxyType:
     return PROXY_TYPES.get(proxy_type.lower())
-
 
 def to_telethon_proxy(proxy: Proxy) -> dict:
     return {
@@ -30,7 +28,6 @@ def to_telethon_proxy(proxy: Proxy) -> dict:
         'password': proxy.password
     }
 
-
 def to_pyrogram_proxy(proxy: Proxy) -> dict:
     return {
         'scheme': proxy.protocol if proxy.protocol != 'https' else 'http',
@@ -39,7 +36,6 @@ def to_pyrogram_proxy(proxy: Proxy) -> dict:
         'username': proxy.login,
         'password': proxy.password
     }
-
 
 def get_proxies(proxy_path: str) -> list[str]:
     proxy_template_path = "bot/config/proxies-template.txt"
@@ -54,12 +50,10 @@ def get_proxies(proxy_path: str) -> list[str]:
                          not row.strip().startswith('type')})
     return []
 
-
 def get_unused_proxies(accounts_config: dict, proxy_path: str) -> list[str]:
     proxies_count = Counter([v.get('proxy') for v in accounts_config.values() if v.get('proxy')])
     all_proxies = get_proxies(proxy_path)
     return [proxy for proxy in all_proxies if proxies_count.get(proxy, 0) < settings.SESSIONS_PER_PROXY]
-
 
 async def check_proxy(proxy: str) -> bool:
     url = 'https://ifconfig.me/ip'
@@ -76,7 +70,6 @@ async def check_proxy(proxy: str) -> bool:
         logger.warning(f"Proxy {proxy} didn't respond")
         return False
 
-
 async def get_proxy_chain(path: str) -> tuple[str | None, str | None]:
     try:
         with open(path, 'r') as file:
@@ -85,7 +78,6 @@ async def get_proxy_chain(path: str) -> tuple[str | None, str | None]:
     except Exception:
         logger.error(f"Failed to get proxy for proxy chain from '{path}'")
         return None, None
-
 
 async def get_working_proxy(accounts_config: dict, current_proxy: str | None) -> str | None:
     if current_proxy and await check_proxy(current_proxy):

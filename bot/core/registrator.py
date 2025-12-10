@@ -5,10 +5,8 @@ from pyrogram import Client
 from bot.config import settings
 from bot.utils import logger, proxy_utils, config_utils, CONFIG_PATH, PROXIES_PATH, SESSIONS_PATH
 
-
 API_ID = settings.API_ID
 API_HASH = settings.API_HASH
-
 
 async def register_sessions() -> None:
     if not API_ID or not API_HASH:

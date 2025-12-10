@@ -11,13 +11,10 @@ import json
 from bot.utils.logger import logger, log_error
 from bot.exceptions import AdViewError
 
-
 T = TypeVar('T')
-
 
 @dataclass
 class AdEventConfig:
-    """Конфигурация событий рекламы"""
     event_type: str
     tracking_type_id: str
     min_delay: float = 0.0
@@ -25,11 +22,9 @@ class AdEventConfig:
     required: bool = True
     retry_count: int = 1
 
-
 @dataclass
 class AdConfig:
-    """Расширенная конфигурация для просмотра рекламы"""
-    # Базовые настройки
+
     min_view_duration: float = 15.0
     max_view_duration: float = 20.0
     min_delay_between_ads: float = 2.0
@@ -37,49 +32,42 @@ class AdConfig:
     max_retries: int = 3
     retry_delay: float = 5.0
     
-    # Расширенные настройки
+
     user_agent: str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
     platform: str = "MacIntel"
     language: str = "ru"
     connection_type: str = "1"
     device_platform: str = "android"
     
-    # Настройки событий
+
     events: List[AdEventConfig] = field(default_factory=lambda: [
         AdEventConfig("render", "13", 0.0, 0.5),
         AdEventConfig("show", "0", 1.0, 2.0),
         AdEventConfig("reward", "14", 0.0, 0.5, True, 3)
     ])
     
-    # Дополнительные параметры запросов
+
     additional_params: Dict[str, str] = field(default_factory=dict)
     
-    # Настройки прокси
+
     proxy_url: Optional[str] = None
     proxy_auth: Optional[Dict[str, str]] = None
 
-
 class AdEventHandler(ABC):
-    """Абстрактный обработчик событий рекламы"""
     
     @abstractmethod
     async def on_ad_start(self, ad_data: Dict[str, Any]) -> None:
-        """Called before the ad viewing starts"""
         pass
     
     @abstractmethod
     async def on_ad_complete(self, ad_data: Dict[str, Any], success: bool) -> None:
-        """Called after the ad viewing is completed"""
         pass
     
     @abstractmethod
     async def on_ad_error(self, error: Exception, attempt: int) -> None:
-        """Called when an error occurs"""
         pass
 
-
 class DefaultAdEventHandler(AdEventHandler):
-    """Базовый обработчик событий рекламы"""
     
     async def on_ad_start(self, ad_data: Dict[str, Any]) -> None:
         logger.info("Ad viewing started")
@@ -91,9 +79,7 @@ class DefaultAdEventHandler(AdEventHandler):
     async def on_ad_error(self, error: Exception, attempt: int) -> None:
         log_error(f"Error during ad viewing (attempt {attempt}): {str(error)}")
 
-
 class AdViewer:
-    """Универсальный класс для управления просмотром рекламы"""
     
     def __init__(
         self,
@@ -117,18 +103,16 @@ class AdViewer:
         self._event_handler = event_handler or DefaultAdEventHandler()
         self._custom_headers = custom_headers or {}
         
-        # Валидация конфигурации
+
         self._validate_config()
 
     def _validate_config(self) -> None:
-        """Валидация конфигурации"""
         if self._config.min_view_duration > self._config.max_view_duration:
             raise ValueError("min_view_duration cannot be greater than max_view_duration")
         if self._config.min_delay_between_ads > self._config.max_delay_between_ads:
             raise ValueError("min_delay_between_ads cannot be greater than max_delay_between_ads")
 
     def _get_base_params(self) -> Dict[str, str]:
-        """Получение базовых параметров для запросов"""
         params = {
             "blockId": self._block_id,
             "tg_id": self._user_id,
@@ -142,7 +126,6 @@ class AdViewer:
         return {k: v for k, v in params.items() if v is not None}
 
     def _get_headers(self, additional_headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        """Формирование заголовков запроса"""
         headers = {
             "Authorization": f"Bearer {self._access_token}",
             "User-Agent": self._config.user_agent,
@@ -163,7 +146,6 @@ class AdViewer:
         headers: Optional[Dict[str, str]] = None,
         timeout: Optional[float] = None
     ) -> Dict[str, Any]:
-        """Универсальный метод для выполнения HTTP-запросов"""
         try:
             request_kwargs = {
                 "method": method,
@@ -195,7 +177,6 @@ class AdViewer:
             raise AdViewError(f"Error during request execution: {str(e)}")
 
     async def _get_ad(self) -> Dict[str, Any]:
-        """Получение рекламного объявления"""
         params = {
             **self._get_base_params(),
             "request_id": str(int(datetime.now(timezone.utc).timestamp() * 1000))
@@ -207,7 +188,6 @@ class AdViewer:
         event_config: AdEventConfig,
         tracking_data: Dict[str, str]
     ) -> bool:
-        """Обработка события рекламы с учетом конфигурации"""
         record = tracking_data.get(event_config.event_type)
         if not record:
             if event_config.required:
@@ -239,7 +219,6 @@ class AdViewer:
         return False
 
     async def _simulate_ad_view(self, tracking_data: Dict[str, str]) -> bool:
-        """Расширенная симуляция просмотра рекламы"""
         try:
             for event_config in self._config.events:
                 if not await self._process_ad_event(event_config, tracking_data):
@@ -259,7 +238,6 @@ class AdViewer:
             return False
 
     def _extract_tracking_data(self, ad_data: Dict[str, Any]) -> Dict[str, str]:
-        """Извлечение данных отслеживания из ответа API"""
         try:
             tracking_list = ad_data.get("banner", {}).get("trackings", [])
             return {
@@ -275,16 +253,6 @@ class AdViewer:
         count: int,
         success_callback: Optional[Callable[[Dict[str, Any]], Any]] = None
     ) -> int:
-        """
-        Просмотр указанного количества рекламных объявлений
-        
-        Args:
-            count: Количество рекламных объявлений для просмотра
-            success_callback: Функция обратного вызова после успешного просмотра
-            
-        Returns:
-            int: Количество успешно просмотренных объявлений
-        """
         successful_views = 0
         
         for i in range(count):
@@ -292,7 +260,7 @@ class AdViewer:
             
             for attempt in range(self._config.max_retries):
                 try:
-                    # Получение рекламы
+
                     ad_data = await self._get_ad()
                     await self._event_handler.on_ad_start(ad_data)
                     
@@ -314,7 +282,7 @@ class AdViewer:
                         await asyncio.sleep(self._config.retry_delay)
                     continue
             
-            # Задержка между просмотрами
+
             if i < count - 1:
                 delay = uniform(
                     self._config.min_delay_between_ads,
@@ -322,4 +290,4 @@ class AdViewer:
                 )
                 await asyncio.sleep(delay)
         
-        return successful_views 
+        return successful_views

@@ -10,7 +10,6 @@ from .client import app
 
 qr = QRCode()
 
-
 async def check_session(client: Client, dc_id: int):
     if not isinstance(dc_id, int):
         raise ValueError(f"Error: dc_id must be an integer, but got {type(dc_id)}")
@@ -36,7 +35,6 @@ async def check_session(client: Client, dc_id: int):
 async def clear_screen():
     call(['cls' if os.name == 'nt' else 'clear'], shell=True)
 
-
 async def create_qrcodes():
     if not app.is_initialized:
         await app.dispatcher.start()
@@ -57,7 +55,6 @@ async def create_qrcodes():
         if isinstance(r, raw.types.auth.LoginToken):
             await _gen_qr(r.token)
             await asyncio.sleep(30)
-
 
 async def _gen_qr(token: bytes):
     token = base64url(token).decode("utf8")

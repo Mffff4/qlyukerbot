@@ -5,7 +5,6 @@ from opentele.api import API
 from os import path, remove
 from copy import deepcopy
 
-
 def read_config_file(config_path: str) -> dict:
     try:
         with open(config_path, 'r') as file:
@@ -16,7 +15,6 @@ def read_config_file(config_path: str) -> dict:
             logger.warning(f"Accounts config file `{config_path}` not found. Creating a new one.")
         return {}
 
-
 async def write_config_file(content: dict, config_path: str) -> None:
     lock = AsyncInterProcessLock(path.join(path.dirname(config_path), 'lock_files', 'accounts_config.lock'))
     async with lock:
@@ -24,16 +22,13 @@ async def write_config_file(content: dict, config_path: str) -> None:
             json.dump(content, file, indent=2)
         await asyncio.sleep(0.1)
 
-
 def get_session_config(session_name: str, config_path: str) -> dict:
     return read_config_file(config_path).get(session_name, {})
-
 
 async def update_session_config_in_file(session_name: str, updated_session_config: dict, config_path: str) -> None:
     config = read_config_file(config_path)
     config[session_name] = updated_session_config
     await write_config_file(config, config_path)
-
 
 async def restructure_config(config_path: str) -> None:
     config = read_config_file(config_path)
@@ -54,7 +49,6 @@ async def restructure_config(config_path: str) -> None:
             cfg_copy[key]['api'] = api_info
         if cfg_copy != config:
             await write_config_file(cfg_copy, config_path)
-
 
 def import_session_json(session_path: str) -> dict:
     lang_pack = {
@@ -81,7 +75,6 @@ def import_session_json(session_path: str) -> dict:
         remove(json_path)
         return api
     return None
-
 
 def get_api(acc_api: dict) -> API:
     api_generators = {

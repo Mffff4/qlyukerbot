@@ -5,7 +5,6 @@ from os import path
 
 from bot.utils import logger
 
-
 class AsyncInterProcessLock:
     def __init__(self, lock_file: str):
         self._lock = fasteners.InterProcessLock(lock_file)

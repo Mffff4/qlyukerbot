@@ -21,7 +21,6 @@ HEADERS = {
     'x-device-platform': 'android'
 }
 
-
 def get_auth_headers(token: str) -> Dict[str, str]:
     auth_headers = HEADERS.copy()
     auth_headers['authorization'] = f'Bearer {token}'

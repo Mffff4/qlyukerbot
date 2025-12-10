@@ -1,0 +1,16 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.pyi
+*.egg-info
+dist
+sessions/*
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+bot/config/accounts_config.json
+bot/config/lock_files
+first_run.txt

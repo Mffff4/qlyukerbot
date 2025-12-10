@@ -5,4 +5,3 @@ try:
     APP_HASH = settings.API_HASH
 except (NoOptionError, NoSectionError):
     print("Find your App configs in https://my.telegram.org")
-

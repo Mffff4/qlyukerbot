@@ -26,7 +26,6 @@ from bot.exceptions import InvalidSession
 from bot.utils.proxy_utils import to_pyrogram_proxy, to_telethon_proxy
 from bot.utils import logger, log_error, AsyncInterProcessLock, CONFIG_PATH, first_run
 
-
 class UniversalTelegramClient:
     def __init__(self, **client_params):
         self.session_name = None
@@ -422,14 +421,6 @@ class UniversalTelegramClient:
         return self.ref_id
 
     async def join_telegram_channel(self, channel_data: dict) -> bool:
-        """Универсальный метод для подписки на Telegram-каналы.
-        
-        Args:
-            channel_data: Словарь с данными канала, содержащий username
-            
-        Returns:
-            bool: True если подписка успешна, False в противном случае
-        """
         if not settings.SUBSCRIBE_TELEGRAM:
             logger.warning(f"{self.session_name} | Channel subscriptions are disabled in settings")
             return False
