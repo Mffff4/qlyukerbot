@@ -1,10 +1,36 @@
-# Bot Bot
+# 🤖 Qlyuker Bot
 
-[🇷🇺 Русский](README-RU.md) | [🇬🇧 English](README.md)
+> **Automated Telegram Bot for Task Management and Bonus Collection**
+
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Telegram](https://img.shields.io/badge/Telegram-Bot-blue.svg)](https://telegram.org/)
+
+[🇷🇺 Русский](README_RU.md) | [🇬🇧 English](README.md)
 
 [<img src="https://res.cloudinary.com/dkgz59pmw/image/upload/v1736756459/knpk224-28px-market_ksivis.svg" alt="Market Link" width="200">](https://t.me/MaineMarketBot?start=8HVF7S9K)
 [<img src="https://res.cloudinary.com/dkgz59pmw/image/upload/v1736756459/knpk224-28px-channel_psjoqn.svg" alt="Channel Link" width="200">](https://t.me/+vpXdTJ_S3mo0ZjIy)
 [<img src="https://res.cloudinary.com/dkgz59pmw/image/upload/v1736756459/knpk224-28px-chat_ixoikd.svg" alt="Chat Link" width="200">](https://t.me/+wWQuct9bljQ0ZDA6)
+
+---
+
+## 💻 About the Software
+
+**Qlyuker Bot** is a professional automation solution built with Python for Telegram bot interaction. The software leverages modern asynchronous programming patterns and provides enterprise-grade features for managing multiple accounts efficiently.
+
+### 🔧 Technical Stack
+- **Language**: Python 3.10+
+- **Framework**: Pyrogram (Telegram MTProto API)
+- **Architecture**: Asynchronous multi-threaded
+- **Deployment**: Docker & Docker Compose support
+- **Package Manager**: UV (modern Python package manager)
+
+### 🎯 Use Cases
+- Automated task completion in Telegram bots
+- Multi-account management with proxy support
+- Daily bonus collection automation
+- Referral program participation
+- Session management via QR codes
 
 ---
 
