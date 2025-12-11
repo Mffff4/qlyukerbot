@@ -112,9 +112,9 @@ async def process() -> None:
             await stop_web_and_tunnel()
             print("Program terminated.")
 
-async def move_invalid_session_to_error_folder(session_name: str) -> None:
-    error_dir = os.path.join(SESSIONS_PATH, "error")
-    os.makedirs(error_dir, exist_ok=True)
+async def move_invalid_session_to_inactive_folder(session_name: str) -> None:
+    inactive_dir = os.path.join(SESSIONS_PATH, "inactive")
+    os.makedirs(inactive_dir, exist_ok=True)
     
     session_patterns = [
         f"{SESSIONS_PATH}/{session_name}.session",
@@ -130,9 +130,9 @@ async def move_invalid_session_to_error_folder(session_name: str) -> None:
             if os.path.exists(session_file):
                 relative_path = os.path.relpath(os.path.dirname(session_file), SESSIONS_PATH)
                 if relative_path == ".":
-                    target_dir = error_dir
+                    target_dir = inactive_dir
                 else:
-                    target_dir = os.path.join(error_dir, relative_path)
+                    target_dir = os.path.join(inactive_dir, relative_path)
                     os.makedirs(target_dir, exist_ok=True)
                 
                 target_path = os.path.join(target_dir, os.path.basename(session_file))
@@ -143,7 +143,7 @@ async def move_invalid_session_to_error_folder(session_name: str) -> None:
                     logger.error(f"Error moving session {session_name}: {e}")
     
     if not found:
-        logger.error(f"Session {session_name} not found when attempting to move to error folder")
+        logger.error(f"Session {session_name} not found when attempting to move to inactive folder")
 
 def get_sessions(sessions_folder: str) -> list[str]:
     session_names = glob.glob(f"{sessions_folder}/*.session")
@@ -206,7 +206,7 @@ async def get_tg_clients() -> list[UniversalTelegramClient]:
                     PyrogramSessionPasswordNeededError,
                    PyrogramSessionRevoked, InvalidSession) as e:
                 logger.error(f"{session_name} | Session initialization error: {e}")
-                await move_invalid_session_to_error_folder(session_name)
+                await move_invalid_session_to_inactive_folder(session_name)
             continue
 
         else:
@@ -230,7 +230,7 @@ async def get_tg_clients() -> list[UniversalTelegramClient]:
                        PyrogramSessionPasswordNeededError,
                       PyrogramSessionRevoked, InvalidSession) as e:
                     logger.error(f"{session_name} | Session initialization error: {e}")
-                    await move_invalid_session_to_error_folder(session_name)
+                    await move_invalid_session_to_inactive_folder(session_name)
 
     return tg_clients
 
@@ -287,15 +287,15 @@ async def handle_tapper_session(tg_client: UniversalTelegramClient, stats_bot: O
         await run_tapper(tg_client=tg_client)
     except InvalidSession as e:
         logger.error(f"Invalid session: {session_name}: {e}")
-        await move_invalid_session_to_error_folder(session_name)
+        await move_invalid_session_to_inactive_folder(session_name)
     except (AuthKeyUnregisteredError, AuthKeyDuplicatedError, AuthKeyError, 
             SessionPasswordNeededError) as e:
         logger.error(f"Authentication error for Telethon session {session_name}: {e}")
-        await move_invalid_session_to_error_folder(session_name)
+        await move_invalid_session_to_inactive_folder(session_name)
     except (PyrogramAuthKeyUnregisteredError,
             PyrogramSessionPasswordNeededError, PyrogramSessionRevoked) as e:
         logger.error(f"Authentication error for Pyrogram session {session_name}: {e}")
-        await move_invalid_session_to_error_folder(session_name)
+        await move_invalid_session_to_inactive_folder(session_name)
     except Exception as e:
         logger.error(f"Unexpected error in session {session_name}: {e}")
     finally:

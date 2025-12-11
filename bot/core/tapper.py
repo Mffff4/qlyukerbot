@@ -25,6 +25,7 @@ class BaseBot:
     GAME_SYNC_URL = f"{API_BASE_URL}/game/sync"
     UPGRADE_BUY_URL = f"{API_BASE_URL}/upgrades/buy"
     TASKS_CHECK_URL = f"{API_BASE_URL}/tasks/check"
+    TICKETS_BUY_URL = f"{API_BASE_URL}/game/tickets/buy"
     
     DEFAULT_HEADERS = {
         'Accept': '*/*',
@@ -774,6 +775,44 @@ class BaseBot:
         
         logger.info(f"{self.session_name} | ⏹️ Task processing phase completed. Checked: {tasks_processed_count}, Completed now: {tasks_completed_count}.")
 
+    async def buy_tickets(self) -> None:
+        if not self._game_data or 'user' not in self._game_data or 'yandex' not in self._game_data['user']:
+            return
+
+        logger.info(f"{self.session_name} | Yandex account detected. Starting to buy tickets with candies.")
+        
+        while self._current_candies >= 10:
+            logger.info(f"{self.session_name} | Have {self._current_candies} candies. Trying to buy 1 ticket.")
+            
+            headers = self.DEFAULT_HEADERS.copy()
+            headers['User-Agent'] = self._user_agent
+            headers['Onboarding'] = '2'
+            if self._cookies:
+                headers['Cookie'] = self._cookies
+
+            payload = {"count": 1}
+
+            response = await self.make_request(
+                'post',
+                self.TICKETS_BUY_URL,
+                headers=headers,
+                json=payload
+            )
+
+            if response and 'result' in response:
+                result = response['result']
+                old_tickets = self._current_tickets
+                self._current_tickets = result.get('currentTickets', self._current_tickets)
+                self._current_candies = result.get('currentCandies', self._current_candies)
+                logger.info(f"{self.session_name} | Successfully bought {self._current_tickets - old_tickets} ticket(s). "
+                            f"Tickets: {self._current_tickets}, Candies: {self._current_candies}")
+                await asyncio.sleep(uniform(1, 2))
+            else:
+                logger.error(f"{self.session_name} | Failed to buy ticket. Stopping ticket purchase for this cycle.")
+                break
+        
+        logger.info(f"{self.session_name} | Finished buying tickets. Current candies: {self._current_candies}")
+
     async def game_loop(self) -> None:
         if self._game_data and 'game' in self._game_data:
             game_data = self._game_data['game']
@@ -802,6 +841,8 @@ class BaseBot:
                 
                 logger.info(f"{self.session_name} | ▶️ Starting task processing phase")
                 await self._process_tasks()
+
+                await self.buy_tickets()
 
                 logger.info(
                     f"{self.session_name} | ⏭️ Skipping upgrade phase (testing auto-upgrades on checkpoints). "
